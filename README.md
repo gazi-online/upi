@@ -1,5 +1,9 @@
 # upipay
 
+[![npm version](https://img.shields.io/npm/v/@gazi-online/upi.svg?style=flat-square&color=blue)](https://www.npmjs.com/package/@gazi-online/upi)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178c6?style=flat-square)](https://www.typescriptlang.org/)
+
 > Zero-commission, direct UPI payment gateway and dynamic NPCI QR code generator for Node.js and TypeScript.
 
 Accept UPI payments directly to your bank account with ₹0 platform commission. Easily generate dynamic NPCI-compliant QR codes, deep-intent links (PhonePe, Google Pay, Paytm), and integrate with PhonePe Business APIs for automated status checks and webhooks.
