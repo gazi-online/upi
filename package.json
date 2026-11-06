@@ -1,7 +1,7 @@
 {
-  "name": "upi-qr-generator",
+  "name": "@gazi-online/upi",
   "version": "1.0.0",
-  "description": "Dynamic NPCI UPI QR Generator with PhonePe Gateway",
+  "description": "Zero-commission, direct UPI payment gateway and dynamic NPCI QR code generator for Node.js and TypeScript",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -29,5 +29,21 @@
     "tsup": "^9.0.0",
     "tsx": "^4.7.0",
     "typescript": "^5.9.3"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gazi-online/upi.git"
+  },
+  "keywords": [
+    "upi",
+    "upi-payment",
+    "upi-india",
+    "phonepe",
+    "phonepe-api",
+    "qr-code",
+    "npci",
+    "payment-gateway"
+  ],
+  "author": "Nur Islam Gazi",
+  "license": "MIT"
 }

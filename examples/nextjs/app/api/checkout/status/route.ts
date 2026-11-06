@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { PhonePeGateway } from 'upipay';
+import { PhonePeGateway } from '@gazi-online/upi';
 
 const gateway = new PhonePeGateway({
   merchantId: process.env.PHONEPE_MERCHANT_ID || 'TEST_MID',

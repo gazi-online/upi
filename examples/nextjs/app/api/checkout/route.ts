@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { generateUPIQR } from 'upipay';
+import { generateUPIQR } from '@gazi-online/upi';
 
 export async function POST(req: Request) {
   try {
