@@ -18,11 +18,13 @@ interface PaymentDetails {
 export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [payment, setPayment] = useState<PaymentDetails | null>(null);
-  const [status, setStatus] = useState<'IDLE' | 'PENDING' | 'COMPLETED'>('IDLE');
+  const [status, setStatus] = useState<'IDLE' | 'PENDING' | 'COMPLETED' | 'FAILED'>('IDLE');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const initiatePayment = async () => {
     setLoading(true);
     setStatus('PENDING');
+    setErrorMessage(null);
 
     const res = await fetch('/api/checkout', {
       method: 'POST',
@@ -38,19 +40,23 @@ export default function CheckoutPage() {
   };
 
   useEffect(() => {
-    if (!payment?.txnRef || status === 'COMPLETED') return;
+    if (!payment?.txnRef || status === 'COMPLETED' || status === 'FAILED') return;
 
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`/api/checkout/status?txnRef=${payment.txnRef}`);
         const data = await res.json();
 
-        if (data.status === 'COMPLETED') {
+        if (data.status === 'SUCCESS') {
           setStatus('COMPLETED');
+          clearInterval(interval);
+        } else if (data.status === 'FAILED') {
+          setStatus('FAILED');
+          setErrorMessage(data.message || 'Transaction could not be processed');
           clearInterval(interval);
         }
       } catch (err) {
-        console.error('Polling error', err);
+        console.error('Polling error:', err);
       }
     }, 3000);
 
@@ -114,6 +120,24 @@ export default function CheckoutPage() {
             <span>Waiting for payment confirmation...</span>
           </div>
           <small style={{ display: 'block', color: '#94a3b8', marginTop: 4 }}>Ref: {payment.txnRef}</small>
+        </div>
+      )}
+
+      {status === 'FAILED' && (
+        <div style={{ padding: '24px 0', color: '#dc2626' }}>
+          <div style={{ fontSize: 48 }}>✕</div>
+          <h3>Payment Failed</h3>
+          <p style={{ color: '#475569' }}>{errorMessage}</p>
+          <button
+            onClick={() => {
+              setStatus('IDLE');
+              setPayment(null);
+              setErrorMessage(null);
+            }}
+            style={{ marginTop: 16, padding: '12px 24px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 16 }}
+          >
+            Try Again
+          </button>
         </div>
       )}
 

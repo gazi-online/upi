@@ -1,31 +1,31 @@
 import { NextResponse } from 'next/server';
-import { PhonePeGateway } from '@gazi-online/upi';
-
-const gateway = new PhonePeGateway({
-  merchantId: process.env.PHONEPE_MERCHANT_ID || 'TEST_MID',
-  saltKey: process.env.PHONEPE_SALT_KEY || 'TEST_KEY',
-  saltIndex: 1,
-  isProd: false,
-});
+import { upiClient } from '@/lib/upipay';
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const txnRef = searchParams.get('txnRef');
 
   if (!txnRef) {
-    return NextResponse.json({ error: 'Missing transaction reference' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Missing transaction reference (txnRef)' },
+      { status: 400 }
+    );
   }
 
   try {
-    const statusResult = await gateway.checkStatus(txnRef);
-
-    const isCompleted = statusResult?.code === 'PAYMENT_SUCCESS' || statusResult?.state === 'COMPLETED';
+    // যেকোনো গেটওয়ের জন্য স্ট্যান্ডার্ডাইজড রেসপন্স: SUCCESS | PENDING | FAILED
+    const result = await upiClient.checkStatus(txnRef);
 
     return NextResponse.json({
-      status: isCompleted ? 'COMPLETED' : 'PENDING',
-      raw: statusResult,
+      status: result.status,
+      amount: result.amount,
+      transactionId: result.transactionId,
+      message: result.message,
     });
-  } catch {
-    return NextResponse.json({ status: 'PENDING' });
+  } catch (error: any) {
+    return NextResponse.json({
+      status: 'PENDING',
+      message: error.message || 'Waiting for payment confirmation',
+    });
   }
 }
