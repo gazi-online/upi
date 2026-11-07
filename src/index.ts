@@ -151,3 +151,5 @@ export class PhonePeGateway {
     return hash === calculatedHash;
   }
 }
+
+export * from './paytm';
