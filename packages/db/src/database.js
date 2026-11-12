@@ -67,14 +67,30 @@ export class Database {
         dbPath = path.isAbsolute(process.env.SQLITE_DB_PATH)
           ? process.env.SQLITE_DB_PATH
           : path.resolve(repoRoot, process.env.SQLITE_DB_PATH);
+      } else if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+        dbPath = path.resolve('/tmp', 'youpi_pg.sqlite');
       } else {
         dbPath = path.resolve(repoRoot, 'data/youpi_pg.sqlite');
       }
-      const dir = path.dirname(dbPath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
+      try {
+        const dir = path.dirname(dbPath);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        this.db = new DatabaseSync(dbPath);
+      } catch (err) {
+        // If the filesystem is read-only (common in serverless functions), fall back to /tmp
+        if ((err.code === 'EROFS' || err.code === 'EACCES') && !dbPath.startsWith('/tmp')) {
+          dbPath = path.resolve('/tmp', 'youpi_pg.sqlite');
+          const dir = path.dirname(dbPath);
+          if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+          }
+          this.db = new DatabaseSync(dbPath);
+        } else {
+          throw err;
+        }
       }
-      this.db = new DatabaseSync(dbPath);
     }
 
     // Enable foreign keys, busy timeout, and WAL mode for maximum concurrency and integrity

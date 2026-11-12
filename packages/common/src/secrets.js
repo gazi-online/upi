@@ -6,7 +6,18 @@ import { encrypt, decrypt } from './crypto.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Resolved from this file, not cwd: every service must read the same files.
-const SECRETS_DIR = path.resolve(__dirname, '../../../data/.secrets');
+// In serverless environments (like Vercel), fall back to /tmp to avoid read-only filesystem errors.
+function getSecretsDir() {
+  if (process.env.YOUPI_SECRETS_DIR) {
+    return path.resolve(process.env.YOUPI_SECRETS_DIR);
+  }
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return path.resolve('/tmp', '.secrets');
+  }
+  return path.resolve(__dirname, '../../../data/.secrets');
+}
+
+const SECRETS_DIR = getSecretsDir();
 
 const cache = new Map();
 
