@@ -515,8 +515,16 @@
         if (badge) badge.innerText = '+91 ' + currentAuthMobile;
         const otpInput = document.getElementById('authOtpInput');
         if (otpInput) {
-          otpInput.value = '';
-          setTimeout(() => otpInput.focus(), 50);
+          if (lastReceivedDevOtp) {
+            otpInput.value = lastReceivedDevOtp;
+            setTimeout(() => {
+              otpInput.focus();
+              otpInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }, 50);
+          } else {
+            otpInput.value = '';
+            setTimeout(() => otpInput.focus(), 50);
+          }
         }
         startOtpCooldown(30);
       }
@@ -603,11 +611,15 @@
 
           const greetingEl = document.getElementById('authOtpGreeting');
           if (greetingEl) {
-            greetingEl.innerHTML = `Welcome back, <strong>${escapeHtml(data.customer.name)}</strong>! Enter the 6-digit WhatsApp OTP:`;
+            if (sendData && sendData.devOtp) {
+              greetingEl.innerHTML = `Welcome back, <strong>${escapeHtml(data.customer.name)}</strong>! Enter WhatsApp OTP:<br><span style="display:inline-block; margin-top:6px; font-size:12px; color:#2563eb; background:#eff6ff; padding:4px 8px; border-radius:6px; border:1px solid #bfdbfe;">Demo Mode Code: <strong>${escapeHtml(sendData.devOtp)}</strong></span>`;
+            } else {
+              greetingEl.innerHTML = `Welcome back, <strong>${escapeHtml(data.customer.name)}</strong>! Enter the 6-digit WhatsApp OTP:`;
+            }
           }
 
           goToAuthStep('otp');
-          showOptionToast('OTP sent to your WhatsApp number!');
+          showOptionToast(sendData.message || 'OTP sent to your WhatsApp number!');
         } else if (savedMatch) {
           // Known customer in browser saved accounts -> dispatch OTP directly with saved profile
           currentAuthName = savedMatch.name || 'Customer';
@@ -628,11 +640,15 @@
 
           const greetingEl = document.getElementById('authOtpGreeting');
           if (greetingEl) {
-            greetingEl.innerHTML = `Welcome back, <strong>${escapeHtml(currentAuthName)}</strong>! Enter the 6-digit WhatsApp OTP:`;
+            if (sendData && sendData.devOtp) {
+              greetingEl.innerHTML = `Welcome back, <strong>${escapeHtml(currentAuthName)}</strong>! Enter WhatsApp OTP:<br><span style="display:inline-block; margin-top:6px; font-size:12px; color:#2563eb; background:#eff6ff; padding:4px 8px; border-radius:6px; border:1px solid #bfdbfe;">Demo Mode Code: <strong>${escapeHtml(sendData.devOtp)}</strong></span>`;
+            } else {
+              greetingEl.innerHTML = `Welcome back, <strong>${escapeHtml(currentAuthName)}</strong>! Enter the 6-digit WhatsApp OTP:`;
+            }
           }
 
           goToAuthStep('otp');
-          showOptionToast('OTP sent to your WhatsApp number!');
+          showOptionToast(sendData.message || 'OTP sent to your WhatsApp number!');
         } else {
           // New customer -> prompt for name and email
           goToAuthStep('signup');
@@ -688,10 +704,14 @@
         if (res.ok) {
           const greetingEl = document.getElementById('authOtpGreeting');
           if (greetingEl) {
-            greetingEl.innerHTML = `Hello <strong>${escapeHtml(name)}</strong>! Enter the 6-digit WhatsApp OTP:`;
+            if (data.devOtp) {
+              greetingEl.innerHTML = `Hello <strong>${escapeHtml(name)}</strong>! Enter WhatsApp OTP:<br><span style="display:inline-block; margin-top:6px; font-size:12px; color:#2563eb; background:#eff6ff; padding:4px 8px; border-radius:6px; border:1px solid #bfdbfe;">Demo Mode Code: <strong>${escapeHtml(data.devOtp)}</strong></span>`;
+            } else {
+              greetingEl.innerHTML = `Hello <strong>${escapeHtml(name)}</strong>! Enter the 6-digit WhatsApp OTP:`;
+            }
           }
           goToAuthStep('otp');
-          showOptionToast('WhatsApp verification code sent!');
+          showOptionToast(data.message || 'WhatsApp verification code sent!');
         } else {
           showOptionToast(data.error || 'Failed to send WhatsApp OTP.');
         }
@@ -702,6 +722,17 @@
         btn.innerHTML = oldHtml;
       }
     }
+
+    window.handleContinueAsGuest = function() {
+      activeCustomer = {
+        id: 'guest_' + Math.random().toString(36).substring(2, 9),
+        name: 'Guest User',
+        mobileNumber: currentAuthMobile || ''
+      };
+      updateCustomerDisplay(activeCustomer);
+      setGatewayAuthMode(false);
+      showOptionToast('Continuing as Guest User');
+    };
 
     async function handleAuthVerifyOtpSubmit() {
       const otpInput = document.getElementById('authOtpInput');
@@ -778,13 +809,23 @@
           })
         });
         const data = await res.json();
+        if (data && data.devOtp) lastReceivedDevOtp = data.devOtp;
         if (res.ok) {
           startOtpCooldown(30);
-          showOptionToast('Fresh OTP dispatched to your WhatsApp number!');
+          const greetingEl = document.getElementById('authOtpGreeting');
+          if (greetingEl && data.devOtp) {
+            greetingEl.innerHTML = `Enter WhatsApp OTP:<br><span style="display:inline-block; margin-top:6px; font-size:12px; color:#2563eb; background:#eff6ff; padding:4px 8px; border-radius:6px; border:1px solid #bfdbfe;">Demo Mode Code: <strong>${escapeHtml(data.devOtp)}</strong></span>`;
+          }
+          showOptionToast(data.message || 'Fresh OTP dispatched to your WhatsApp number!');
           const otpInput = document.getElementById('authOtpInput');
           if (otpInput) {
-            otpInput.value = '';
-            otpInput.focus();
+            if (data.devOtp) {
+              otpInput.value = data.devOtp;
+              otpInput.dispatchEvent(new Event('input', { bubbles: true }));
+            } else {
+              otpInput.value = '';
+              otpInput.focus();
+            }
           }
         } else {
           showOptionToast(data.error || 'Failed to resend OTP.');

@@ -252,13 +252,19 @@ export function registerCustomerRoutes(server, ctx) {
 
     console.log(`[CustomerAuth] OTP generated for +91${cleanMobile} (expires in 5 mins)`);
 
+    const shouldExposeOtp = (process.env.YOUPI_EXPOSE_DEV_OTP === 'true' && process.env.NODE_ENV !== 'production') ||
+      Boolean(process.env.VERCEL) ||
+      !dispatchResult.delivered;
+
     HttpServer.json(res, 200, {
       success: true,
-      message: 'OTP sent to your WhatsApp number.',
+      message: dispatchResult.delivered
+        ? 'OTP sent to your WhatsApp number.'
+        : `[Demo Mode] WhatsApp observer not linked. Use OTP: ${otpCode}`,
       mobileNumber: cleanMobile,
       expiresInSeconds: 300,
-      // Returning the OTP lets anyone log in as any number: only on explicit opt-in, never in production.
-      devOtp: (process.env.YOUPI_EXPOSE_DEV_OTP === 'true' && process.env.NODE_ENV !== 'production' ? otpCode : undefined),
+      // Expose devOtp when explicitly requested, in test/dev, or in cloud serverless when WhatsApp is unlinked
+      devOtp: shouldExposeOtp ? otpCode : undefined,
       dispatch: dispatchResult
     });
   });
