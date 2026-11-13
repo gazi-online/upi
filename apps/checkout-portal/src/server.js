@@ -395,17 +395,33 @@ export class CheckoutServer {
       }
 
       // Static CSS & JS Asset Handler with Secure Path Traversal Prevention
-      if (pathname.startsWith('/css/') || pathname.startsWith('/js/')) {
-        const assetFolder = pathname.startsWith('/css/') ? 'css' : 'js';
+      if (pathname.startsWith('/css/') || pathname.startsWith('/js/') || pathname.startsWith('/assets/')) {
+        const assetFolder = pathname.startsWith('/css/') ? 'css' : (pathname.startsWith('/js/') ? 'js' : 'assets');
         const assetName = path.basename(pathname);
-        const assetDir = path.resolve(__dirname, '..', 'public', assetFolder);
-        const assetPath = path.resolve(assetDir, assetName);
+        let assetDir = path.resolve(__dirname, '..', 'public', assetFolder);
+        let assetPath = path.resolve(assetDir, assetName);
 
-        const relative = path.relative(assetDir, assetPath);
-        const isSecure = relative && !relative.startsWith('..') && !path.isAbsolute(relative);
+        let relative = path.relative(assetDir, assetPath);
+        let isSecure = relative && !relative.startsWith('..') && !path.isAbsolute(relative);
+
+        if (!fs.existsSync(assetPath)) {
+          // Fall back to store public assets (e.g. store.css, store.js, gateway screenshots)
+          const storeAssetDir = path.resolve(__dirname, '../../coin-wallet-store/public', assetFolder);
+          const storeAssetPath = path.resolve(storeAssetDir, assetName);
+          const storeRel = path.relative(storeAssetDir, storeAssetPath);
+          if (storeRel && !storeRel.startsWith('..') && !path.isAbsolute(storeRel) && fs.existsSync(storeAssetPath)) {
+            assetDir = storeAssetDir;
+            assetPath = storeAssetPath;
+            isSecure = true;
+          }
+        }
 
         if (isSecure && fs.existsSync(assetPath)) {
-          const contentType = assetFolder === 'css' ? 'text/css; charset=utf-8' : 'application/javascript; charset=utf-8';
+          const contentType = assetFolder === 'css' ? 'text/css; charset=utf-8'
+            : assetFolder === 'js' ? 'application/javascript; charset=utf-8'
+            : assetName.endsWith('.png') ? 'image/png'
+            : assetName.endsWith('.svg') ? 'image/svg+xml'
+            : 'application/octet-stream';
           res.writeHead(200, {
             'Content-Type': contentType,
             'Cache-Control': 'public, max-age=86400',
