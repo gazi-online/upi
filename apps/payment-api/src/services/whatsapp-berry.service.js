@@ -102,10 +102,11 @@ export async function formatQrDataUrl(rawText, qrcodeModule = null) {
 export class WhatsAppBerryService extends EventEmitter {
   constructor(options = {}) {
     super();
+    const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
     this.sessionId = options.sessionId || 'youpi_berry_session';
-    this.sessionPath = options.sessionPath || path.resolve(rootDir, 'data/berry_auth');
-    this.databasePath = options.databasePath || path.resolve(rootDir, 'data/berry_store.db');
-    this.metaFile = options.metaFile || path.resolve(rootDir, 'data/whatsapp_session.json');
+    this.sessionPath = options.sessionPath || (isServerless ? path.resolve('/tmp', 'berry_auth') : path.resolve(rootDir, 'data/berry_auth'));
+    this.databasePath = options.databasePath || (isServerless ? path.resolve('/tmp', 'berry_store.db') : path.resolve(rootDir, 'data/berry_store.db'));
+    this.metaFile = options.metaFile || (isServerless ? path.resolve('/tmp', 'whatsapp_session.json') : path.resolve(rootDir, 'data/whatsapp_session.json'));
 
     this.status = 'DISCONNECTED'; // 'DISCONNECTED' | 'QR_READY' | 'PAIRING_CODE_READY' | 'CONNECTING' | 'CONNECTED'
     this.phoneNumber = null;

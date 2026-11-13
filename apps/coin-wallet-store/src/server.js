@@ -121,11 +121,14 @@ export class CoinWalletStoreServer {
     this.orders = new Map();
 
     const underTest = process.env.NODE_ENV === 'test' || Boolean(process.env.NODE_TEST_CONTEXT);
+    const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
     this.idempotencyPath = options.idempotencyPath
       || process.env.COIN_STORE_IDEMPOTENCY_PATH
       || (underTest
         ? ':memory:'
-        : path.resolve(__dirname, '../../../data/coin-wallet-fulfillment.sqlite'));
+        : isServerless
+          ? path.resolve('/tmp', 'coin-wallet-fulfillment.sqlite')
+          : path.resolve(__dirname, '../../../data/coin-wallet-fulfillment.sqlite'));
     this.openFulfillmentLedger();
 
     this.paymentClient = new YoupiPaymentClient({
@@ -149,7 +152,16 @@ export class CoinWalletStoreServer {
 
   openFulfillmentLedger() {
     if (this.idempotencyPath !== ':memory:') {
-      fs.mkdirSync(path.dirname(this.idempotencyPath), { recursive: true });
+      try {
+        fs.mkdirSync(path.dirname(this.idempotencyPath), { recursive: true });
+      } catch (err) {
+        if ((err.code === 'EROFS' || err.code === 'EACCES') && !this.idempotencyPath.startsWith('/tmp')) {
+          this.idempotencyPath = path.resolve('/tmp', 'coin-wallet-fulfillment.sqlite');
+          fs.mkdirSync(path.dirname(this.idempotencyPath), { recursive: true });
+        } else {
+          throw err;
+        }
+      }
     }
     this.ledger = new DatabaseSync(this.idempotencyPath);
     this.ledger.exec(`
