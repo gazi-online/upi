@@ -63,12 +63,14 @@ export class Database {
         dbPath = path.isAbsolute(options.dbPath)
           ? options.dbPath
           : path.resolve(process.cwd(), options.dbPath);
+      } else if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+        dbPath = (process.env.SQLITE_DB_PATH && process.env.SQLITE_DB_PATH.startsWith('/tmp'))
+          ? process.env.SQLITE_DB_PATH
+          : path.resolve('/tmp', 'youpi_pg.sqlite');
       } else if (process.env.SQLITE_DB_PATH) {
         dbPath = path.isAbsolute(process.env.SQLITE_DB_PATH)
           ? process.env.SQLITE_DB_PATH
           : path.resolve(repoRoot, process.env.SQLITE_DB_PATH);
-      } else if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-        dbPath = path.resolve('/tmp', 'youpi_pg.sqlite');
       } else {
         dbPath = path.resolve(repoRoot, 'data/youpi_pg.sqlite');
       }

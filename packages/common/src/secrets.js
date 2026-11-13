@@ -8,11 +8,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Resolved from this file, not cwd: every service must read the same files.
 // In serverless environments (like Vercel), fall back to /tmp to avoid read-only filesystem errors.
 function getSecretsDir() {
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    if (process.env.YOUPI_SECRETS_DIR && process.env.YOUPI_SECRETS_DIR.startsWith('/tmp')) {
+      return path.resolve(process.env.YOUPI_SECRETS_DIR);
+    }
+    return path.resolve('/tmp', '.secrets');
+  }
   if (process.env.YOUPI_SECRETS_DIR) {
     return path.resolve(process.env.YOUPI_SECRETS_DIR);
-  }
-  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-    return path.resolve('/tmp', '.secrets');
   }
   return path.resolve(__dirname, '../../../data/.secrets');
 }
