@@ -36,6 +36,18 @@ export function resolveSecret(name, envVar) {
   if (fromEnv) return fromEnv;
   if (cache.has(name)) return cache.get(name);
 
+  // In serverless environments (e.g. Vercel), instances do not share /tmp.
+  // Derive a deterministic secret across all containers in the deployment if no env var is set.
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    const serverlessSeed = process.env.YOUPI_MASTER_SECRET
+      || process.env.VERCEL_PROJECT_ID
+      || process.env.VERCEL_URL
+      || 'youpi-pg-serverless-seed';
+    const derived = crypto.createHmac('sha256', serverlessSeed).update(name).digest('hex');
+    cache.set(name, derived);
+    return derived;
+  }
+
   const file = path.join(SECRETS_DIR, name);
   let value = '';
   try { value = fs.readFileSync(file, 'utf8').trim(); } catch {}
@@ -107,7 +119,8 @@ function isLoopbackRemoteAddress(remoteAddress) {
 
 /** True only when the caller proves it is a trusted co-located internal service. */
 export function isInternalServiceRequest(req) {
-  if (!isLoopbackRemoteAddress(req?.socket?.remoteAddress)) return false;
+  const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+  if (!isServerless && !isLoopbackRemoteAddress(req?.socket?.remoteAddress)) return false;
   const match = /^Bearer\s+(.+)$/i.exec(req?.headers?.['authorization'] || '');
   const presented = (match ? match[1].trim() : '') || (req?.headers?.['x-internal-token'] || '');
   return Boolean(presented) && safeEqual(presented, getInternalServiceToken());

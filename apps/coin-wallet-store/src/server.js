@@ -103,14 +103,21 @@ export class CoinWalletStoreServer {
    */
   constructor(options = {}) {
     const internalPort = process.env.PAYMENT_API_PORT || 6100;
-    this.gatewayApiUrl = options.gatewayApiUrl || process.env.PAYMENT_API_URL || process.env.PAYMENT_API_INTERNAL_URL || `http://127.0.0.1:${internalPort}`;
+    this.gatewayApiUrl = options.gatewayApiUrl
+      || process.env.PAYMENT_API_URL
+      || process.env.PAYMENT_API_INTERNAL_URL
+      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
+      || `http://127.0.0.1:${internalPort}`;
     this.merchantId = options.merchantId || '00000000-0000-0000-0000-000000000001';
     this.webhookSecret = options.webhookSecret || getCoinStoreWebhookSecret();
 
     // Canonical public origin of this store. Post-payment return URLs are built from this
     // value rather than from the request's Host / X-Forwarded-* headers, which are
     // attacker-controllable and would otherwise allow redirecting paying customers elsewhere.
-    let pubUrl = options.publicBaseUrl || process.env.COIN_STORE_PUBLIC_URL || `http://localhost:${process.env.STORE_PORT || 5000}`;
+    let pubUrl = options.publicBaseUrl
+      || process.env.COIN_STORE_PUBLIC_URL
+      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
+      || `http://localhost:${process.env.STORE_PORT || 5000}`;
     while (pubUrl.endsWith('/')) {
       pubUrl = pubUrl.slice(0, -1);
     }
@@ -625,8 +632,9 @@ export class CoinWalletStoreServer {
               checkoutUrl: resolvedCheckoutUrl
             }));
           } catch (err) {
+            console.error('[store-checkout-error]', err);
             res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Unable to create payment' }));
+            res.end(JSON.stringify({ error: 'Unable to create payment', details: err?.message }));
           }
         });
         return;

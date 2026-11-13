@@ -265,9 +265,11 @@
     document.getElementById('quickModal').classList.remove('active');
   }
 
+  const apiBase = window.location.pathname.startsWith('/store') ? '/store/api' : '/api';
+
   async function loadWallet() {
     try {
-      const res = await fetch('/api/wallet-balance');
+      const res = await fetch(`${apiBase}/wallet-balance`);
       const data = await res.json();
 
       document.getElementById('walletCoinsDisplay').textContent = (data.coins || 0).toLocaleString();
@@ -299,7 +301,7 @@
     closeQuickPackModal();
 
     try {
-      const res = await fetch('/api/checkout', {
+      const res = await fetch(`${apiBase}/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ packName, coins, price })
@@ -316,7 +318,7 @@
             description: `${packName}`,
             handler: async function(paymentResponse) {
               // Direct instant credit
-              await fetch('/api/verify-payment', {
+              await fetch(`${apiBase}/verify-payment`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

@@ -114,7 +114,8 @@ async function startGatewayPurchase() {
     btn.setAttribute('data-order-id', orderId);
 
     // 1. Create order on store backend via YoupiPaymentClient
-    const res = await fetch('/api/checkout', {
+    const apiBase = window.location.pathname.startsWith('/store') ? '/store/api' : '/api';
+    const res = await fetch(`${apiBase}/checkout`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -166,7 +167,8 @@ async function startGatewayPurchase() {
 window.addEventListener('youpi:payment:success', function(e) {
   console.log('[YOUPI PG Event] youpi:payment:success', e.detail);
   const res = e.detail;
-  fetch('/api/verify-payment', {
+  const apiBase = window.location.pathname.startsWith('/store') ? '/store/api' : '/api';
+  fetch(`${apiBase}/verify-payment`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

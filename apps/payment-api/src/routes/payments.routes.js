@@ -138,6 +138,21 @@ export function registerPaymentRoutes(server, ctx) {
       }
       const allowedReturnOrigins = String(process.env.YOUPI_ALLOWED_RETURN_ORIGINS || '')
         .split(/[\s,]+/).map(value => value.trim()).filter(Boolean);
+      if (process.env.VERCEL_URL) {
+        allowedReturnOrigins.push(`https://${process.env.VERCEL_URL}`);
+      }
+      if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+        allowedReturnOrigins.push(`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`);
+      }
+      if (process.env.CHECKOUT_PUBLIC_URL) {
+        try { allowedReturnOrigins.push(new URL(process.env.CHECKOUT_PUBLIC_URL).origin); } catch {}
+      }
+      if (process.env.PUBLIC_APP_URL) {
+        try { allowedReturnOrigins.push(new URL(process.env.PUBLIC_APP_URL).origin); } catch {}
+      }
+      if (process.env.NODE_ENV !== 'production' || !process.env.YOUPI_MODE || process.env.YOUPI_MODE !== 'production') {
+        allowedReturnOrigins.push('http://localhost:5000', 'http://127.0.0.1:5000', 'http://localhost:7000', 'http://127.0.0.1:7000');
+      }
       if (!allowedReturnOrigins.includes(parsedReturnUrl.origin)) {
         HttpServer.json(res, 400, { error: 'returnUrl origin is not allowlisted for this gateway.' });
         return;
