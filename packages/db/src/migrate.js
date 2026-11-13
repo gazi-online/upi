@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import { getCoinStoreWebhookSecret, LEGACY_DEFAULT_WEBHOOK_SECRET, resolveDefaultBranding } from '@youpi/common';
 import { getDatabase } from './database.js';
+import { getSchemaSql } from './sqlite-schema.js';
 import { MerchantRepository } from './repositories/merchant.repository.js';
 import { ReceivingAccountRepository } from './repositories/receiving-account.repository.js';
 import { CustomerRepository } from './repositories/customer.repository.js';
@@ -17,8 +18,7 @@ const __dirname = path.dirname(__filename);
  */
 export function runMigrations(targetDb) {
   const db = targetDb || getDatabase();
-  const schemaPath = path.join(__dirname, 'sqlite-schema.sql');
-  const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+  const schemaSql = getSchemaSql();
 
   // Detect if customers table has an obsolete schema (phone_number/merchant_id instead of email/mobile_number, or password_hash NOT NULL).
   // The old table is only rebuilt when it holds no customers: a schema mismatch must never destroy customer data.

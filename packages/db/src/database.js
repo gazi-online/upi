@@ -93,12 +93,19 @@ export class Database {
       }
     }
 
-    // Enable foreign keys, busy timeout, and WAL mode for maximum concurrency and integrity
+    // Enable foreign keys, busy timeout, and journal mode
     this.db.exec('PRAGMA foreign_keys = ON;');
     this.db.exec('PRAGMA busy_timeout = 5000;');
-    try {
-      this.db.exec('PRAGMA journal_mode = WAL;');
-    } catch {}
+    const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+    if (isServerless) {
+      try {
+        this.db.exec('PRAGMA journal_mode = DELETE;');
+      } catch {}
+    } else {
+      try {
+        this.db.exec('PRAGMA journal_mode = WAL;');
+      } catch {}
+    }
 
     // Auto-initialize SQLite on first boot if core tables do not exist
     if (!options.inMemory && options.autoMigrate !== false) {
