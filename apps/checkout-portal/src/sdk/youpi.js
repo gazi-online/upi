@@ -210,12 +210,14 @@
         targetUrl = `${this.options.portalUrl}/checkout/demo`;
       }
 
-      // If running on localhost / 127.0.0.1 and targetUrl points to remote external origin, keep path and point to local host
-      if (isBrowser && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+      // If targetUrl points to another deployment hash on the same apex domain or localhost, normalize to current window origin
+      if (isBrowser) {
         try {
           const parsed = new URL(targetUrl, window.location.origin);
-          if (parsed.hostname !== 'localhost' && parsed.hostname !== '127.0.0.1' && !this.options.portalUrl) {
-            targetUrl = `${window.location.protocol}//${window.location.host}${parsed.pathname}${parsed.search}`;
+          const isVercelHash = parsed.hostname.includes('-projects.vercel.app') || (parsed.hostname.endsWith('.vercel.app') && parsed.hostname !== window.location.hostname);
+          const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+          if (isVercelHash || (isLocal && parsed.hostname !== 'localhost' && parsed.hostname !== '127.0.0.1' && !this.options.portalUrl)) {
+            targetUrl = `${window.location.origin}${parsed.pathname}${parsed.search}`;
           }
         } catch {}
       }

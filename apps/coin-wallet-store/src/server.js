@@ -616,9 +616,9 @@ export class CoinWalletStoreServer {
               createdAt: Date.now()
             });
 
-            // Normalize checkoutUrl for localhost development / testing to prevent tunnel offline issues
-            let resolvedCheckoutUrl = payment.checkoutUrl;
-            if (this.publicBaseUrl.includes('localhost') || this.publicBaseUrl.includes('127.0.0.1')) {
+            // Normalize checkoutUrl for same-host deployment to avoid cross-subdomain / deployment protection blocking
+            let resolvedCheckoutUrl = `/checkout/${payment.paymentId}`;
+            if (this.publicBaseUrl && !this.publicBaseUrl.includes('-projects.vercel.app')) {
               resolvedCheckoutUrl = `${this.publicBaseUrl}/checkout/${payment.paymentId}`;
             }
 

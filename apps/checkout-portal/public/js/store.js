@@ -134,8 +134,9 @@ async function startGatewayPurchase() {
     }
 
     // 2. Launch checkout modal using official Youpi.pay() SDK
+    const modalUrl = data.checkoutUrl ? (data.checkoutUrl.startsWith('/') ? data.checkoutUrl : new URL(data.checkoutUrl, window.location.origin).pathname) : `/checkout/${data.paymentId}`;
     window.Youpi.pay({
-      checkoutUrl: data.checkoutUrl,
+      checkoutUrl: modalUrl,
       order_id: data.orderId,
       amount: currentAmount,
       currency: 'INR',
