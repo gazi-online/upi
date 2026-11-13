@@ -9,9 +9,49 @@ const BASE_SECURITY_HEADERS = Object.freeze({
 });
 
 function configuredOrigins() {
-  return new Set(String(process.env.YOUPI_ALLOWED_ORIGINS || '').split(/[\s,]+/).map(value => {
+  const origins = String(process.env.YOUPI_ALLOWED_ORIGINS || '').split(/[\s,]+/).map(value => {
     try { return new URL(value).origin; } catch { return ''; }
-  }).filter(Boolean));
+  }).filter(Boolean);
+
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    origins.push(`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`);
+  }
+  if (process.env.VERCEL_URL) {
+    origins.push(`https://${process.env.VERCEL_URL}`);
+  }
+  if (process.env.CHECKOUT_PUBLIC_URL) {
+    try { origins.push(new URL(process.env.CHECKOUT_PUBLIC_URL).origin); } catch {}
+  }
+  if (process.env.PUBLIC_APP_URL) {
+    try { origins.push(new URL(process.env.PUBLIC_APP_URL).origin); } catch {}
+  }
+  if (process.env.NODE_ENV !== 'production' || !process.env.YOUPI_MODE || process.env.YOUPI_MODE !== 'production') {
+    origins.push('http://localhost:5000', 'http://127.0.0.1:5000', 'http://localhost:7000', 'http://127.0.0.1:7000', 'http://localhost:6001', 'http://127.0.0.1:6001', 'http://localhost:3000', 'http://127.0.0.1:3000');
+  }
+
+  return new Set(origins);
+}
+
+function isAllowedOrigin(origin, req = null) {
+  if (!origin) return true;
+  const origins = configuredOrigins();
+  if (origins.has(origin)) return true;
+
+  try {
+    const parsed = new URL(origin);
+    // Allow same-host requests (e.g. browser calling relative or canonical API on same domain)
+    const host = req?.headers?.['x-forwarded-host'] || req?.headers?.host;
+    if (host && (parsed.host === host || parsed.hostname === host.split(':')[0])) {
+      return true;
+    }
+
+    // Allow *.vercel.app deployments
+    if (parsed.protocol === 'https:' && parsed.hostname.endsWith('.vercel.app')) {
+      return true;
+    }
+  } catch {}
+
+  return false;
 }
 
 const requestWindows = new Map();
@@ -206,15 +246,14 @@ export class HttpServer {
   createServer() {
     return http.createServer(async (req, res) => {
       const origin = req.headers.origin;
-      const origins = configuredOrigins();
-      if (origin && !origins.has(origin)) {
+      if (origin && !isAllowedOrigin(origin, req)) {
         HttpServer.json(res, 403, { error: 'Origin is not allowed.' });
         return;
       }
       if (origin) res.corsOrigin = origin;
       // Handle CORS preflight
       if (req.method === 'OPTIONS') {
-        if (!origin || !res.corsOrigin) {
+        if (!origin || !res.corsOrigin || !isAllowedOrigin(origin, req)) {
           HttpServer.json(res, 403, { error: 'Origin is not allowed.' });
           return;
         }
