@@ -298,6 +298,16 @@ export class CheckoutServer {
       const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
       const pathname = url.pathname;
 
+      // Root Landing / Store Redirect
+      if (pathname === '/' || pathname === '/checkout') {
+        res.writeHead(302, {
+          'Location': '/store',
+          'Cache-Control': 'no-cache'
+        });
+        res.end();
+        return;
+      }
+
       // Health
       if (pathname === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -548,8 +558,30 @@ export class CheckoutServer {
       }
 
       // Not found
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Checkout Page Not Found');
+      res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Payment Session Not Found — YOUPI PG</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #0f172a; color: #f8fafc; }
+    .card { background: #1e293b; padding: 2.5rem; border-radius: 1rem; max-width: 480px; text-align: center; border: 1px solid #334155; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); }
+    h1 { font-size: 1.5rem; margin-bottom: 0.75rem; color: #f8fafc; }
+    p { color: #94a3b8; font-size: 0.95rem; line-height: 1.5; margin-bottom: 1.75rem; }
+    .btn { display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 600; font-size: 0.95rem; transition: background 0.2s; }
+    .btn:hover { background: #1d4ed8; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Payment Session Not Found</h1>
+    <p>The requested checkout session does not exist or has expired. Please initiate a new payment from the merchant store.</p>
+    <a href="/store" class="btn">Go to Demo Store</a>
+  </div>
+</body>
+</html>`);
     });
   }
 }
