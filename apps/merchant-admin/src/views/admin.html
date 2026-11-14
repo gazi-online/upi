@@ -4195,7 +4195,19 @@
     }
 
     // --- MERGED CONTROL CENTER & SYSTEM SUPERVISOR ---
+    function isCloudEnvironment() {
+      return window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+    }
+
     async function loadServices() {
+      if (isCloudEnvironment()) {
+        updateYoupiStoreStatus([]);
+        const tbody = document.getElementById('servicesTableBody');
+        if (tbody) {
+          tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted); padding:1.5rem;">☁️ Serverless Cloud Deployment — Microservices (Payment API, Checkout Portal, Showcase Store, Admin) are running automatically on Vercel.</td></tr>`;
+        }
+        return;
+      }
       try {
         const res = await fetch('/api/services');
         if (!res.ok) throw new Error('Supervisor unreachable');
@@ -4260,17 +4272,23 @@
       }).join('');
     }
 
-    // --- YOUPI SHOWCASE STORE (PORT 5000) MASTER SWITCH ---
+    // --- YOUPI SHOWCASE STORE MASTER SWITCH ---
     function updateYoupiStoreStatus(services) {
-      const store = services.find(s => s.id === 'coin-wallet-store');
-      const isRunning = store && store.status === 'RUNNING';
+      const isCloud = isCloudEnvironment();
+      const store = Array.isArray(services) ? services.find(s => s.id === 'coin-wallet-store') : null;
+      const isRunning = isCloud || (store && store.status === 'RUNNING');
 
       // 1. Header Badge
       const hBadge = document.getElementById('headerStoreBadge');
       const hText = document.getElementById('headerStoreText');
       const hDot = document.getElementById('headerStoreDot');
       if (hBadge && hText) {
-        if (isRunning) {
+        if (isCloud) {
+          hBadge.className = 'store-switch-badge is-online';
+          hText.textContent = 'Store: ONLINE ↗';
+          hDot.textContent = '🟢';
+          hBadge.title = 'Showcase store is running live in the cloud. Click to open /store.';
+        } else if (isRunning) {
           hBadge.className = 'store-switch-badge is-online';
           hText.textContent = 'Store (5000): ONLINE';
           hDot.textContent = '🟢';
@@ -4286,7 +4304,16 @@
       const btnToggle = document.getElementById('btnToggleYoupiStore') || document.getElementById('btnToggleGamerVaultStore');
       const btnLink = document.getElementById('btnOpenStoreLink');
       if (cBadge && btnToggle) {
-        if (isRunning) {
+        if (isCloud) {
+          cBadge.className = 'badge badge-success';
+          cBadge.textContent = '🟢 ONLINE (SERVERLESS ROUTE /store)';
+          btnToggle.className = 'btn btn-primary';
+          btnToggle.innerHTML = '↗ Open Store (/store)';
+          if (btnLink) {
+            btnLink.style.display = 'inline-flex';
+            btnLink.href = '/store';
+          }
+        } else if (isRunning) {
           cBadge.className = 'badge badge-success';
           cBadge.textContent = '🟢 ONLINE & ACTIVE (PORT 5000)';
           btnToggle.className = 'btn btn-danger';
@@ -4303,6 +4330,10 @@
     }
 
     async function toggleYoupiStore() {
+      if (isCloudEnvironment()) {
+        window.open('/store', '_blank');
+        return;
+      }
       const store = servicesList.find(s => s.id === 'coin-wallet-store');
       const isRunning = store && store.status === 'RUNNING';
 
@@ -4320,6 +4351,10 @@
     window.toggleGamerVaultStore = toggleYoupiStore;
 
     async function startService(id) {
+      if (isCloudEnvironment()) {
+        showAdminToast(`In cloud deployment, all microservices run serverless.`, true);
+        return;
+      }
       try {
         const res = await fetch(`/api/services/${id}/start`, { method: 'POST' });
         const data = await res.json();
@@ -4331,6 +4366,10 @@
     }
 
     async function stopService(id) {
+      if (isCloudEnvironment()) {
+        showAdminToast(`In cloud deployment, services run serverless and cannot be manually stopped.`, false);
+        return;
+      }
       try {
         const res = await fetch(`/api/services/${id}/stop`, { method: 'POST' });
         const data = await res.json();
@@ -4342,6 +4381,10 @@
     }
 
     async function restartService(id) {
+      if (isCloudEnvironment()) {
+        showAdminToast(`In cloud deployment, services are stateless and auto-recycle.`, true);
+        return;
+      }
       try {
         const res = await fetch(`/api/services/${id}/restart`, { method: 'POST' });
         const data = await res.json();
