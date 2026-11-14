@@ -37,6 +37,12 @@ export function frameAncestorOrigins(raw = process.env.CHECKOUT_FRAME_ANCESTORS)
       }
     } catch {}
   }
+  if (process.env.PUBLIC_APP_URL) {
+    try { origins.push(new URL(process.env.PUBLIC_APP_URL).origin); } catch {}
+  }
+  if (process.env.CHECKOUT_PUBLIC_URL) {
+    try { origins.push(new URL(process.env.CHECKOUT_PUBLIC_URL).origin); } catch {}
+  }
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
     origins.push(`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`);
   }
