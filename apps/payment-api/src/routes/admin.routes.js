@@ -519,112 +519,131 @@ export function registerAdminRoutes(server, ctx) {
 
   // POST /api/v1/admin/upi-accounts (Add a new VPA)
   server.post('/api/v1/admin/upi-accounts', async (req, res) => {
-    const body = await HttpServer.parseBody(req);
-    const { upiId, payeeName, isActive } = body;
-    let merchant = resolveMerchant(req, body.merchantId);
+    try {
+      const body = await HttpServer.parseBody(req);
+      const { upiId, payeeName, isActive } = body;
+      let merchant = resolveMerchant(req, body.merchantId);
 
-    if (!merchant) {
-      HttpServer.json(res, 404, { error: 'Merchant not found' });
-      return;
-    }
-
-    if (!upiId || !upiId.trim()) {
-      HttpServer.json(res, 400, { error: 'UPI ID (VPA) is required.' });
-      return;
-    }
-
-    if (!isValidVpa(upiId.trim())) {
-      HttpServer.json(res, 400, { error: `Invalid UPI VPA format: "${upiId}". Expected: username@bank` });
-      return;
-    }
-
-    const existingAccounts = ctx.accountRepo.findByMerchantId(merchant.id);
-    const shouldActivate = isActive !== undefined ? Boolean(isActive) : (existingAccounts.length === 0);
-
-    const account = ctx.accountRepo.create({
-      merchantId: merchant.id,
-      upiId: upiId.trim(),
-      payeeName: payeeName?.trim() || merchant.businessName,
-      isMerchantEnabled: true,
-      isActive: shouldActivate
-    });
-
-    ctx.auditRepo.log({
-      merchantId: merchant.id,
-      entityType: 'PAYMENT_RECEIVING_ACCOUNT',
-      entityId: account.id,
-      action: 'RECEIVING_UPI_ADDED',
-      actorType: AuditActorType.ADMIN,
-      details: {
-        upiId: account.upiId,
-        payeeName: account.payeeName,
-        isActive: account.isActive
+      if (!merchant) {
+        HttpServer.json(res, 404, { error: 'Merchant not found' });
+        return;
       }
-    });
 
-    HttpServer.json(res, 201, {
-      success: true,
-      account
-    });
+      if (!upiId || !upiId.trim()) {
+        HttpServer.json(res, 400, { error: 'UPI ID (VPA) is required.' });
+        return;
+      }
+
+      const cleanUpi = upiId.trim().toLowerCase();
+      if (!isValidVpa(cleanUpi)) {
+        HttpServer.json(res, 400, { error: `Invalid UPI VPA format: "${upiId}". Expected: username@bank (e.g. 9876543210@axl or merchant@okhdfcbank)` });
+        return;
+      }
+
+      const existingAccounts = ctx.accountRepo.findByMerchantId(merchant.id);
+      const duplicate = existingAccounts.find(a => a.upiId.toLowerCase() === cleanUpi);
+      if (duplicate) {
+        HttpServer.json(res, 400, { error: `UPI VPA "${cleanUpi}" is already configured for this store.` });
+        return;
+      }
+
+      const shouldActivate = isActive !== undefined ? Boolean(isActive) : (existingAccounts.length === 0);
+
+      const account = ctx.accountRepo.create({
+        merchantId: merchant.id,
+        upiId: cleanUpi,
+        payeeName: payeeName?.trim() || merchant.businessName || 'Merchant Store',
+        isMerchantEnabled: true,
+        isActive: shouldActivate
+      });
+
+      ctx.auditRepo.log({
+        merchantId: merchant.id,
+        entityType: 'PAYMENT_RECEIVING_ACCOUNT',
+        entityId: account.id,
+        action: 'RECEIVING_UPI_ADDED',
+        actorType: AuditActorType.ADMIN,
+        details: {
+          upiId: account.upiId,
+          payeeName: account.payeeName,
+          isActive: account.isActive
+        }
+      });
+
+      HttpServer.json(res, 201, {
+        success: true,
+        account
+      });
+    } catch (err) {
+      HttpServer.json(res, 500, { error: err.message || 'Failed to add UPI receiving account' });
+    }
   });
 
   // POST /api/v1/admin/upi-accounts/:id/activate (Atomically activate VPA, deactivating all others)
   server.post('/api/v1/admin/upi-accounts/:id/activate', async (req, res, params) => {
-    const account = ctx.accountRepo.findById(params.id);
-    if (!account) {
-      HttpServer.json(res, 404, { error: `UPI Account not found: ${params.id}` });
-      return;
-    }
-
-    const updated = ctx.accountRepo.activateAccount(account.merchantId, account.id);
-
-    ctx.auditRepo.log({
-      merchantId: account.merchantId,
-      entityType: 'PAYMENT_RECEIVING_ACCOUNT',
-      entityId: updated.id,
-      action: 'RECEIVING_UPI_ACTIVATED',
-      actorType: AuditActorType.ADMIN,
-      details: {
-        upiId: updated.upiId,
-        payeeName: updated.payeeName,
-        isMerchantEnabled: updated.isMerchantEnabled
+    try {
+      const account = ctx.accountRepo.findById(params.id);
+      if (!account) {
+        HttpServer.json(res, 404, { error: `UPI Account not found: ${params.id}` });
+        return;
       }
-    });
 
-    HttpServer.json(res, 200, {
-      success: true,
-      activeAccount: updated
-    });
+      const updated = ctx.accountRepo.activateAccount(account.merchantId, account.id);
+
+      ctx.auditRepo.log({
+        merchantId: account.merchantId,
+        entityType: 'PAYMENT_RECEIVING_ACCOUNT',
+        entityId: updated.id,
+        action: 'RECEIVING_UPI_ACTIVATED',
+        actorType: AuditActorType.ADMIN,
+        details: {
+          upiId: updated.upiId,
+          payeeName: updated.payeeName,
+          isMerchantEnabled: updated.isMerchantEnabled
+        }
+      });
+
+      HttpServer.json(res, 200, {
+        success: true,
+        activeAccount: updated
+      });
+    } catch (err) {
+      HttpServer.json(res, 500, { error: err.message || 'Failed to activate UPI account' });
+    }
   });
 
   // POST /api/v1/admin/upi-accounts/:id/toggle (Toggle VPA active state)
   server.post('/api/v1/admin/upi-accounts/:id/toggle', async (req, res, params) => {
-    const account = ctx.accountRepo.findById(params.id);
-    if (!account) {
-      HttpServer.json(res, 404, { error: `UPI Account not found: ${params.id}` });
-      return;
+    try {
+      const account = ctx.accountRepo.findById(params.id);
+      if (!account) {
+        HttpServer.json(res, 404, { error: `UPI Account not found: ${params.id}` });
+        return;
+      }
+
+      let updated;
+      if (account.isActive) {
+        updated = ctx.accountRepo.deactivateAccount(account.merchantId, account.id);
+      } else {
+        updated = ctx.accountRepo.activateAccount(account.merchantId, account.id);
+      }
+
+      ctx.auditRepo.log({
+        merchantId: account.merchantId,
+        entityType: 'PAYMENT_RECEIVING_ACCOUNT',
+        entityId: updated.id,
+        action: updated.isActive ? 'RECEIVING_UPI_ACTIVATED' : 'RECEIVING_UPI_DEACTIVATED',
+        actorType: AuditActorType.ADMIN,
+        details: { upiId: updated.upiId, isActive: updated.isActive }
+      });
+
+      HttpServer.json(res, 200, {
+        success: true,
+        account: updated
+      });
+    } catch (err) {
+      HttpServer.json(res, 500, { error: err.message || 'Failed to toggle UPI account' });
     }
-
-    let updated;
-    if (account.isActive) {
-      updated = ctx.accountRepo.deactivateAccount(account.merchantId, account.id);
-    } else {
-      updated = ctx.accountRepo.activateAccount(account.merchantId, account.id);
-    }
-
-    ctx.auditRepo.log({
-      merchantId: account.merchantId,
-      entityType: 'PAYMENT_RECEIVING_ACCOUNT',
-      entityId: updated.id,
-      action: updated.isActive ? 'RECEIVING_UPI_ACTIVATED' : 'RECEIVING_UPI_DEACTIVATED',
-      actorType: AuditActorType.ADMIN,
-      details: { upiId: updated.upiId, isActive: updated.isActive }
-    });
-
-    HttpServer.json(res, 200, {
-      success: true,
-      account: updated
-    });
   });
 
   // DELETE /api/v1/admin/upi-accounts/:id (Delete VPA)

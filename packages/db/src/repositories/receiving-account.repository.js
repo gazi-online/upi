@@ -180,6 +180,14 @@ export class ReceivingAccountRepository {
     }
 
     this.db.execute('DELETE FROM payment_receiving_accounts WHERE id = ? AND merchant_id = ?', [accountId, merchantId]);
+
+    if (account.isActive) {
+      const remaining = this.findByMerchantId(merchantId);
+      if (remaining.length > 0) {
+        this.activateAccount(merchantId, remaining[0].id);
+      }
+    }
+
     return true;
   }
 

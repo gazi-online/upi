@@ -5100,7 +5100,7 @@
 
     async function fetchGatewaySettings() {
       try {
-        const upiRes = await fetch(`${API_BASE}/api/v1/admin/upi-settings`);
+        const upiRes = await fetch(`${API_BASE}/api/v1/admin/upi-settings?merchantId=${encodeURIComponent(currentMerchantId)}`);
         if (upiRes.ok) {
           const upiData = await upiRes.json();
           currentUpiAccounts = upiData.accounts || [];
@@ -5249,62 +5249,103 @@
     }
 
     async function addNewUpiAccount() {
-      const upiId = document.getElementById('newUpiVpa').value.trim();
-      const payeeName = document.getElementById('newUpiPayee').value.trim();
-      const isActive = document.getElementById('newUpiActivateNow').checked;
-      if (!upiId) return alert('Please enter a valid UPI VPA.');
+      const vpaInput = document.getElementById('newUpiVpa');
+      const payeeInput = document.getElementById('newUpiPayee');
+      const activateCheck = document.getElementById('newUpiActivateNow');
+
+      const upiId = vpaInput ? vpaInput.value.trim() : '';
+      const payeeName = payeeInput ? payeeInput.value.trim() : '';
+      const isActive = activateCheck ? activateCheck.checked : true;
+
+      if (!upiId) {
+        alert('Please enter a valid UPI VPA (e.g. 9876543210@axl or merchant@okhdfcbank).');
+        if (vpaInput) vpaInput.focus();
+        return;
+      }
+
+      if (!upiId.includes('@')) {
+        alert('A valid UPI ID must include "@" and the bank handle (e.g. 9876543210@axl or merchant@okhdfcbank).');
+        if (vpaInput) vpaInput.focus();
+        return;
+      }
+
+      const businessName = document.getElementById('settingBusinessName')?.value.trim() || 'Merchant Store';
 
       try {
         const res = await fetch(`${API_BASE}/api/v1/admin/upi-accounts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ upiId, payeeName: payeeName || document.getElementById('settingBusinessName').value, isActive })
+          body: JSON.stringify({
+            upiId,
+            payeeName: payeeName || businessName,
+            isActive,
+            merchantId: currentMerchantId
+          })
         });
         const data = await res.json();
         if (res.ok) {
-          showAdminToast(`UPI account "${data.account.upiId}" added successfully!`);
-          document.getElementById('newUpiVpa').value = '';
-          document.getElementById('newUpiPayee').value = '';
-          fetchGatewaySettings();
+          showAdminToast(`UPI account "${data.account?.upiId || upiId}" added successfully!`);
+          if (vpaInput) vpaInput.value = '';
+          if (payeeInput) payeeInput.value = '';
+          await fetchGatewaySettings();
         } else {
           alert(data.error || 'Failed to add UPI account');
         }
       } catch (e) {
-        alert('Network error adding UPI account');
+        console.error('Error adding UPI account:', e);
+        alert('Network error adding UPI account: ' + (e.message || e));
       }
     }
 
     async function activateVpa(accountId) {
       try {
-        const res = await fetch(`${API_BASE}/api/v1/admin/upi-accounts/${accountId}/activate`, { method: 'POST' });
+        const res = await fetch(`${API_BASE}/api/v1/admin/upi-accounts/${accountId}/activate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ merchantId: currentMerchantId })
+        });
         const data = await res.json();
         if (res.ok) {
-          showAdminToast(`VPA "${data.activeAccount.upiId}" is now the active gateway VPA!`);
-          fetchGatewaySettings();
+          showAdminToast(`VPA "${data.activeAccount?.upiId || ''}" is now the active gateway VPA!`);
+          await fetchGatewaySettings();
         } else {
           alert(data.error || 'Failed to activate UPI account');
         }
       } catch (e) {
+        console.error('Error activating UPI account:', e);
         alert('Network error activating UPI account');
       }
     }
 
     async function toggleVpa(accountId) {
       try {
-        const res = await fetch(`${API_BASE}/api/v1/admin/upi-accounts/${accountId}/toggle`, { method: 'POST' });
-        if (res.ok) fetchGatewaySettings();
-      } catch (e) { }
+        const res = await fetch(`${API_BASE}/api/v1/admin/upi-accounts/${accountId}/toggle`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ merchantId: currentMerchantId })
+        });
+        if (res.ok) await fetchGatewaySettings();
+      } catch (e) {
+        console.error('Error toggling UPI account:', e);
+      }
     }
 
     async function deleteVpa(accountId, upiId) {
       if (!confirm(`Are you sure you want to delete VPA "${upiId}"?`)) return;
       try {
-        const res = await fetch(`${API_BASE}/api/v1/admin/upi-accounts/${accountId}`, { method: 'DELETE' });
+        const res = await fetch(`${API_BASE}/api/v1/admin/upi-accounts/${accountId}?merchantId=${encodeURIComponent(currentMerchantId)}`, {
+          method: 'DELETE'
+        });
         if (res.ok) {
           showAdminToast(`VPA "${upiId}" deleted.`);
-          fetchGatewaySettings();
+          await fetchGatewaySettings();
+        } else {
+          const data = await res.json();
+          alert(data.error || 'Failed to delete VPA');
         }
-      } catch (e) { }
+      } catch (e) {
+        console.error('Error deleting UPI account:', e);
+      }
     }
 
     async function saveMerchantBrandingAndToggles() {
@@ -7971,9 +8012,10 @@
       if (!merchantId || merchantId === currentMerchantId) return;
       currentMerchantId = merchantId;
       showAdminToast(`Switched store context.`, true);
-      await loadMerchantSettings();
+      await fetchGatewaySettings();
       renderMerchantCredentials();
     }
+    const loadMerchantSettings = fetchGatewaySettings;
 
     function renderMerchantCredentials(mData = null) {
       const idEl = document.getElementById('settingDisplayMerchantId');
