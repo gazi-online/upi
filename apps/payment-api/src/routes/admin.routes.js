@@ -2058,22 +2058,35 @@ export function registerAdminRoutes(server, ctx) {
         }
       }
 
-      // Record successful test timestamp
+      // Record verified credentials and successful test timestamp into merchant database
       const currentBranding = merchant?.branding || {};
       const currentGmail = currentBranding.gmailConfig || {};
       const nowIso = new Date().toISOString();
+      const updatedGmail = {
+        ...currentGmail,
+        clientId: (clientId && clientId.trim()) ? clientId.trim() : currentGmail.clientId,
+        clientSecret: (clientSecret && clientSecret.trim() && !clientSecret.includes('•')) ? clientSecret.trim() : currentGmail.clientSecret,
+        refreshToken: (refreshToken && refreshToken.trim()) ? refreshToken.trim() : currentGmail.refreshToken,
+        lastTestedAt: nowIso,
+        lastSuccessfulFetch: nowIso,
+        connectedEmail: profile?.emailAddress || currentGmail.connectedEmail || 'Authorized Account'
+      };
+
       if (merchant) {
         ctx.merchantRepo.update(merchantId, {
           branding: {
             ...currentBranding,
-            gmailConfig: {
-              ...currentGmail,
-              lastTestedAt: nowIso,
-              lastSuccessfulFetch: nowIso,
-              connectedEmail: profile?.emailAddress || currentGmail.connectedEmail || 'Authorized Account'
-            }
+            gmailConfig: updatedGmail
           }
         });
+        // Cross-merchant sync so credentials survive any query mismatch
+        for (const m of ctx.merchantRepo.findAll()) {
+          if (m.id !== merchantId) {
+            ctx.merchantRepo.update(m.id, {
+              branding: { ...(m.branding || {}), gmailConfig: updatedGmail }
+            });
+          }
+        }
       }
 
       HttpServer.json(res, 200, {
