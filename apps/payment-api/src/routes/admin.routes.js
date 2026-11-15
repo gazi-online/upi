@@ -1386,16 +1386,16 @@ export function registerAdminRoutes(server, ctx) {
   if (ctx.whatsappBerryService && typeof ctx.whatsappBerryService.on === 'function') {
     ctx.whatsappBerryService.on('ready', (info) => {
       try {
-        const defaultMerchantId = '00000000-0000-0000-0000-000000000001';
-        const merchant = ctx.merchantRepo.findById(defaultMerchantId) || (ctx.merchantRepo.getDefault ? ctx.merchantRepo.getDefault() : null);
-        if (merchant) {
-          const branding = typeof merchant.branding === 'object' && merchant.branding ? { ...merchant.branding } : {};
-          branding.whatsappConfig = {
-            status: 'CONNECTED',
-            phoneNumber: info.phoneNumber || ctx.whatsappBerryService.phoneNumber,
-            updatedAt: new Date().toISOString()
-          };
-          ctx.merchantRepo.update(merchant.id, { branding });
+        const phone = info.phoneNumber || ctx.whatsappBerryService.phoneNumber;
+        const config = {
+          status: 'CONNECTED',
+          phoneNumber: phone,
+          updatedAt: new Date().toISOString()
+        };
+        for (const m of ctx.merchantRepo.findAll()) {
+          const branding = typeof m.branding === 'object' && m.branding ? { ...m.branding } : {};
+          branding.whatsappConfig = config;
+          ctx.merchantRepo.update(m.id, { branding });
         }
       } catch (err) {
         console.warn('[AdminRoutes] Failed to record whatsappConfig in merchant branding:', err.message);
@@ -1406,11 +1406,33 @@ export function registerAdminRoutes(server, ctx) {
   // GET /api/v1/admin/whatsapp/status
   server.get('/api/v1/admin/whatsapp/status', async (req, res) => {
     const berry = ctx.whatsappBerryService;
-    const merchant = resolveMerchant(req);
-    const savedConfig = merchant?.branding?.whatsappConfig;
+    const merchant = resolveMerchant(req, req.query?.merchantId);
+    let savedConfig = merchant?.branding?.whatsappConfig;
 
-    // Check if the merchant has explicitly disconnected
+    // Cross-merchant fallback: search if any merchant in the DB has an active whatsappConfig
+    if (!savedConfig && ctx.merchantRepo) {
+      for (const m of ctx.merchantRepo.findAll()) {
+        if (m.branding?.whatsappConfig?.status === 'CONNECTED') {
+          savedConfig = m.branding.whatsappConfig;
+          break;
+        }
+      }
+    }
+
+    // Restore from cachedPhone query parameter if not explicitly disconnected
     const isExplicitlyDisconnected = savedConfig?.status === 'DISCONNECTED';
+    if (!savedConfig && req.query?.cachedPhone && !isExplicitlyDisconnected) {
+      savedConfig = {
+        status: 'CONNECTED',
+        phoneNumber: req.query.cachedPhone,
+        updatedAt: new Date().toISOString()
+      };
+      if (merchant) {
+        const branding = typeof merchant.branding === 'object' && merchant.branding ? { ...merchant.branding } : {};
+        branding.whatsappConfig = savedConfig;
+        ctx.merchantRepo.update(merchant.id, { branding });
+      }
+    }
 
     if (isExplicitlyDisconnected) {
       if (berry) {
@@ -1459,15 +1481,18 @@ export function registerAdminRoutes(server, ctx) {
       effectivePhone = savedPhone;
       berry.status = 'CONNECTED';
       berry.phoneNumber = savedPhone;
-    } else if (effectiveStatus === 'CONNECTED' && effectivePhone && merchant && savedConfig?.phoneNumber !== effectivePhone) {
+    } else if (effectiveStatus === 'CONNECTED' && effectivePhone) {
       try {
-        const branding = typeof merchant.branding === 'object' && merchant.branding ? { ...merchant.branding } : {};
-        branding.whatsappConfig = {
+        const config = {
           status: 'CONNECTED',
           phoneNumber: effectivePhone,
           updatedAt: new Date().toISOString()
         };
-        ctx.merchantRepo.update(merchant.id, { branding });
+        for (const m of ctx.merchantRepo.findAll()) {
+          const branding = typeof m.branding === 'object' && m.branding ? { ...m.branding } : {};
+          branding.whatsappConfig = config;
+          ctx.merchantRepo.update(m.id, { branding });
+        }
       } catch {}
     }
 
@@ -1656,16 +1681,17 @@ export function registerAdminRoutes(server, ctx) {
   server.post('/api/v1/admin/whatsapp/disconnect', async (req, res) => {
     const berry = ctx.whatsappBerryService;
     try {
-      const merchant = resolveMerchant(req);
-      if (merchant) {
-        const branding = typeof merchant.branding === 'object' && merchant.branding ? { ...merchant.branding } : {};
-        branding.whatsappConfig = {
-          status: 'DISCONNECTED',
-          phoneNumber: null,
-          disconnectedAt: new Date().toISOString()
-        };
-        delete branding.whatsappQr;
-        ctx.merchantRepo.update(merchant.id, { branding });
+      if (ctx.merchantRepo) {
+        for (const m of ctx.merchantRepo.findAll()) {
+          const branding = typeof m.branding === 'object' && m.branding ? { ...m.branding } : {};
+          branding.whatsappConfig = {
+            status: 'DISCONNECTED',
+            phoneNumber: null,
+            disconnectedAt: new Date().toISOString()
+          };
+          delete branding.whatsappQr;
+          ctx.merchantRepo.update(m.id, { branding });
+        }
       }
     } catch (e) {
       console.warn('[AdminRoutes] Error recording whatsappConfig during disconnect:', e.message);
