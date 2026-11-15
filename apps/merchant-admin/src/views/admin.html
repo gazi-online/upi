@@ -3396,6 +3396,25 @@
                 style="display:none;">🔌 Disconnect</button>
               <button class="btn btn-secondary" onclick="fetchWhatsAppStatus(true)">🔄 Check Status</button>
             </div>
+
+            <!-- Optional Pairing Code Section -->
+            <div id="waPairingCodeSection" style="margin-top:1rem; padding-top:1rem; border-top:1px dashed var(--border);">
+              <div style="font-size:0.85rem; font-weight:600; color:var(--text-heading); margin-bottom:0.4rem;">
+                📱 Or Link Using Phone Number (8-Digit Code)
+              </div>
+              <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.6rem;">
+                Enter your WhatsApp mobile number to generate an 8-digit linking code (WhatsApp > Linked Devices > Link with phone number).
+              </div>
+              <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                <input type="text" id="waPairingPhoneInput" placeholder="+919876543210" style="width:200px; font-size:0.82rem; padding:0.45rem 0.75rem;" />
+                <button class="btn btn-secondary" id="btnWaRequestCode" onclick="requestWhatsAppPairingCode()">🔢 Get 8-Digit Code</button>
+              </div>
+              <div id="waPairingCodeDisplay" style="display:none; margin-top:0.75rem; padding:0.75rem; background:var(--bg-box); border-radius:0.5rem; border:1px solid var(--border);">
+                <div style="font-size:0.75rem; color:var(--text-muted);">Enter this 8-digit code on your handset in WhatsApp > Linked Devices > Link with phone number:</div>
+                <div style="font-size:1.6rem; font-weight:bold; letter-spacing:4px; color:var(--primary); font-family:monospace; margin:0.4rem 0;" id="waPairingCodeVal">---- ----</div>
+                <button class="btn btn-secondary" style="font-size:0.75rem; padding:0.25rem 0.6rem;" onclick="copyWaPairingCode()">📋 Copy Code</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -6267,86 +6286,110 @@
     function closeGmailGuideModal() { document.getElementById('gmailGuideModal').hidden = true; }
 
     // --- WHATSAPP BERRY PROTOCOL ---
+    function updateWhatsAppUI(data, isManual = false) {
+      if (!data) return;
+      const badge = document.getElementById('waHeaderBadge');
+      const dot = document.getElementById('waDotIndicator');
+      const title = document.getElementById('waStateTitle');
+      const phoneDisplay = document.getElementById('waPhoneDisplay');
+      const qrBox = document.getElementById('waQrBox');
+      const qrImg = document.getElementById('waQrImg');
+      const qrPlaceholder = document.getElementById('waQrPlaceholder');
+      const btnDisconnect = document.getElementById('btnWaDisconnect');
+      const btnConnect = document.getElementById('btnWaConnect');
+      const codeDisplay = document.getElementById('waPairingCodeDisplay');
+      const codeVal = document.getElementById('waPairingCodeVal');
+
+      if (data.pairingCode && codeDisplay && codeVal) {
+        codeDisplay.style.display = 'block';
+        codeVal.innerText = data.pairingCode;
+      }
+
+      if (data.status === 'CONNECTED') {
+        if (badge) { badge.className = 'badge badge-success'; badge.innerText = 'CONNECTED'; }
+        if (dot) dot.style.color = 'var(--success)';
+        if (title) title.innerText = 'WhatsApp Connected & Active';
+        if (phoneDisplay) phoneDisplay.innerHTML = `Linked Phone: <strong style="color:var(--success);">${data.phoneNumber || 'Linked Device'}</strong>`;
+        if (qrBox) qrBox.style.display = 'none';
+        if (codeDisplay) codeDisplay.style.display = 'none';
+        if (btnDisconnect) btnDisconnect.style.display = 'inline-block';
+        if (btnConnect) btnConnect.innerText = '🔄 Re-Pair Device';
+      } else if (data.status === 'QR_READY') {
+        if (badge) { badge.className = 'badge badge-warning'; badge.innerText = 'QR READY'; }
+        if (dot) dot.style.color = 'var(--warning)';
+        if (title) title.innerText = 'Scan QR Code with WhatsApp';
+        if (phoneDisplay) phoneDisplay.innerText = 'Awaiting pairing scan from merchant WhatsApp handset';
+        if (qrBox) qrBox.style.display = 'inline-block';
+        if (btnDisconnect) btnDisconnect.style.display = 'none';
+        if (btnConnect) btnConnect.innerText = '🔄 Refresh QR Code';
+
+        if (data.qrCode && qrImg && qrPlaceholder) {
+          let qrSrc = data.qrCode;
+          if (typeof qrSrc === 'string' && !qrSrc.startsWith('data:image/') && !qrSrc.startsWith('http')) {
+            if (qrSrc.startsWith('<svg')) {
+              qrSrc = 'data:image/svg+xml;utf8,' + encodeURIComponent(qrSrc);
+            }
+          }
+
+          if (qrSrc && (qrSrc.startsWith('data:image/') || qrSrc.startsWith('http'))) {
+            qrImg.src = qrSrc;
+            qrImg.style.display = 'block';
+            qrPlaceholder.style.display = 'none';
+          } else {
+            qrImg.style.display = 'none';
+            qrPlaceholder.style.display = 'flex';
+            qrPlaceholder.innerText = 'Preparing pairing QR... Click "Refresh QR Code"';
+          }
+        }
+      } else if (data.status === 'PAIRING_CODE_READY') {
+        if (badge) { badge.className = 'badge badge-info'; badge.innerText = 'CODE READY'; }
+        if (dot) dot.style.color = 'var(--info)';
+        if (title) title.innerText = 'Pairing Code Active';
+        if (phoneDisplay) phoneDisplay.innerText = `Awaiting code entry on WhatsApp handset for ${data.pairingPhone || 'device'}`;
+        if (qrBox) qrBox.style.display = 'none';
+        if (codeDisplay && data.pairingCode) {
+          codeDisplay.style.display = 'block';
+          if (codeVal) codeVal.innerText = data.pairingCode;
+        }
+        if (btnDisconnect) btnDisconnect.style.display = 'none';
+        if (btnConnect) btnConnect.innerText = '🔄 Refresh Session';
+      } else if (data.status === 'CONNECTING') {
+        if (badge) { badge.className = 'badge badge-info'; badge.innerText = 'CONNECTING'; }
+        if (dot) dot.style.color = 'var(--info)';
+        if (title) title.innerText = 'Connecting to WhatsApp...';
+        if (phoneDisplay) phoneDisplay.innerText = 'Establishing secure WhatsApp pairing session...';
+        if (qrBox) qrBox.style.display = 'inline-block';
+        if (qrImg) qrImg.style.display = 'none';
+        if (qrPlaceholder) {
+          qrPlaceholder.style.display = 'flex';
+          qrPlaceholder.innerText = 'Generating official WhatsApp pairing QR...';
+        }
+        if (btnDisconnect) btnDisconnect.style.display = 'none';
+        if (btnConnect) btnConnect.innerText = '⏳ Connecting...';
+      } else {
+        if (badge) { badge.className = 'badge badge-danger'; badge.innerText = 'DISCONNECTED'; }
+        if (dot) dot.style.color = 'var(--danger)';
+        if (title) title.innerText = 'Session Disconnected';
+        if (phoneDisplay) phoneDisplay.innerText = 'No WhatsApp session active';
+        if (qrBox) qrBox.style.display = 'inline-block';
+        if (qrImg) qrImg.style.display = 'none';
+        if (qrPlaceholder) {
+          qrPlaceholder.style.display = 'flex';
+          qrPlaceholder.innerText = 'Click "Connect WhatsApp" to pair device';
+        }
+        if (btnDisconnect) btnDisconnect.style.display = 'none';
+        if (btnConnect) btnConnect.innerText = '⚡ Connect WhatsApp';
+      }
+
+      if (isManual) showAdminToast('WhatsApp session status: ' + data.status);
+    }
+
     async function fetchWhatsAppStatus(isManual = false) {
       try {
         const res = await fetch(`${API_BASE}/api/v1/admin/whatsapp/status`);
         if (!res.ok) return;
         const data = await res.json();
-
-        const badge = document.getElementById('waHeaderBadge');
-        const dot = document.getElementById('waDotIndicator');
-        const title = document.getElementById('waStateTitle');
-        const phoneDisplay = document.getElementById('waPhoneDisplay');
-        const qrBox = document.getElementById('waQrBox');
-        const qrImg = document.getElementById('waQrImg');
-        const qrPlaceholder = document.getElementById('waQrPlaceholder');
-        const btnDisconnect = document.getElementById('btnWaDisconnect');
-        const btnConnect = document.getElementById('btnWaConnect');
-
-        if (data.status === 'CONNECTED') {
-          if (badge) { badge.className = 'badge badge-success'; badge.innerText = 'CONNECTED'; }
-          if (dot) dot.style.color = 'var(--success)';
-          if (title) title.innerText = 'WhatsApp Connected & Active';
-          if (phoneDisplay) phoneDisplay.innerHTML = `Linked Phone: <strong style="color:var(--success);">${data.phoneNumber || 'Linked Device'}</strong>`;
-          if (qrBox) qrBox.style.display = 'none';
-          if (btnDisconnect) btnDisconnect.style.display = 'inline-block';
-          if (btnConnect) btnConnect.innerText = '🔄 Re-Pair Device';
-        } else if (data.status === 'QR_READY') {
-          if (badge) { badge.className = 'badge badge-warning'; badge.innerText = 'QR READY'; }
-          if (dot) dot.style.color = 'var(--warning)';
-          if (title) title.innerText = 'Scan QR Code with WhatsApp';
-          if (phoneDisplay) phoneDisplay.innerText = 'Awaiting pairing scan from merchant WhatsApp handset';
-          if (qrBox) qrBox.style.display = 'inline-block';
-          if (btnDisconnect) btnDisconnect.style.display = 'none';
-          if (btnConnect) btnConnect.innerText = '🔄 Refresh QR Code';
-
-          if (data.qrCode && qrImg && qrPlaceholder) {
-            let qrSrc = data.qrCode;
-            if (typeof qrSrc === 'string' && !qrSrc.startsWith('data:image/') && !qrSrc.startsWith('http')) {
-              if (qrSrc.startsWith('<svg')) {
-                qrSrc = 'data:image/svg+xml;utf8,' + encodeURIComponent(qrSrc);
-              }
-            }
-
-            if (qrSrc && (qrSrc.startsWith('data:image/') || qrSrc.startsWith('http'))) {
-              qrImg.src = qrSrc;
-              qrImg.style.display = 'block';
-              qrPlaceholder.style.display = 'none';
-            } else {
-              qrImg.style.display = 'none';
-              qrPlaceholder.style.display = 'flex';
-              qrPlaceholder.innerText = 'Preparing pairing QR... Click "Refresh QR Code"';
-            }
-          }
-        } else if (data.status === 'CONNECTING') {
-          if (badge) { badge.className = 'badge badge-info'; badge.innerText = 'CONNECTING'; }
-          if (dot) dot.style.color = 'var(--info)';
-          if (title) title.innerText = 'Connecting to WhatsApp...';
-          if (phoneDisplay) phoneDisplay.innerText = 'Establishing secure WhatsApp pairing session...';
-          if (qrBox) qrBox.style.display = 'inline-block';
-          if (qrImg) qrImg.style.display = 'none';
-          if (qrPlaceholder) {
-            qrPlaceholder.style.display = 'flex';
-            qrPlaceholder.innerText = 'Generating official WhatsApp pairing QR...';
-          }
-          if (btnDisconnect) btnDisconnect.style.display = 'none';
-          if (btnConnect) btnConnect.innerText = '⏳ Connecting...';
-        } else {
-          if (badge) { badge.className = 'badge badge-danger'; badge.innerText = 'DISCONNECTED'; }
-          if (dot) dot.style.color = 'var(--danger)';
-          if (title) title.innerText = 'Session Disconnected';
-          if (phoneDisplay) phoneDisplay.innerText = 'No WhatsApp session active';
-          if (qrBox) qrBox.style.display = 'inline-block';
-          if (qrImg) qrImg.style.display = 'none';
-          if (qrPlaceholder) {
-            qrPlaceholder.style.display = 'flex';
-            qrPlaceholder.innerText = 'Click "Connect WhatsApp" to pair device';
-          }
-          if (btnDisconnect) btnDisconnect.style.display = 'none';
-          if (btnConnect) btnConnect.innerText = '⚡ Connect WhatsApp';
-        }
-
-        if (isManual) showAdminToast('WhatsApp session status: ' + data.status);
+        updateWhatsAppUI(data, isManual);
       } catch (e) { }
     }
 
@@ -6355,18 +6398,74 @@
       const oldText = btn.innerText;
       btn.disabled = true;
       btn.innerText = '⏳ Initializing Pairing...';
+      const qrPlaceholder = document.getElementById('waQrPlaceholder');
+      if (qrPlaceholder) {
+        qrPlaceholder.style.display = 'flex';
+        qrPlaceholder.innerText = '⏳ Connecting to WhatsApp & generating pairing QR...';
+      }
 
       try {
         const res = await fetch(`${API_BASE}/api/v1/admin/whatsapp/reconnect`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
         });
-        await fetchWhatsAppStatus();
+        if (res.ok) {
+          const data = await res.json();
+          updateWhatsAppUI(data, true);
+        } else {
+          await fetchWhatsAppStatus();
+        }
       } catch (e) {
         alert('Network error initiating WhatsApp pairing');
       } finally {
         btn.disabled = false;
         btn.innerText = oldText;
+      }
+    }
+
+    async function requestWhatsAppPairingCode() {
+      const input = document.getElementById('waPairingPhoneInput');
+      const btn = document.getElementById('btnWaRequestCode');
+      const phone = input ? input.value.trim() : '';
+      if (!phone) {
+        alert('Please enter your WhatsApp mobile number (e.g. +919876543210)');
+        return;
+      }
+      btn.disabled = true;
+      btn.innerText = '⏳ Requesting Code...';
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/admin/whatsapp/pairing-code`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phoneNumber: phone })
+        });
+        const data = await res.json();
+        if (data.success && data.pairingCode) {
+          showAdminToast('WhatsApp 8-Digit Pairing Code received!');
+          const codeBox = document.getElementById('waPairingCodeDisplay');
+          const codeVal = document.getElementById('waPairingCodeVal');
+          if (codeBox && codeVal) {
+            codeBox.style.display = 'block';
+            codeVal.innerText = data.pairingCode;
+          }
+          await fetchWhatsAppStatus();
+        } else {
+          alert('Failed to get pairing code: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Error requesting WhatsApp pairing code');
+      } finally {
+        btn.disabled = false;
+        btn.innerText = '🔢 Get 8-Digit Code';
+      }
+    }
+
+    function copyWaPairingCode() {
+      const el = document.getElementById('waPairingCodeVal');
+      if (el && el.innerText) {
+        navigator.clipboard.writeText(el.innerText.trim()).then(() => {
+          showAdminToast('8-digit pairing code copied!');
+        });
       }
     }
 
