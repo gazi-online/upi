@@ -6288,6 +6288,8 @@
     // --- WHATSAPP BERRY PROTOCOL ---
     let waConsecutiveDisconnected = 0;
     let isUserInitiatedDisconnect = false;
+    let activePairingQr = null;
+    let isPairingActive = false;
 
     function updateWhatsAppUI(data, isManual = false) {
       if (!data) return;
@@ -6304,6 +6306,20 @@
       const codeVal = document.getElementById('waPairingCodeVal');
 
       const isCurrentlyConnected = badge && badge.innerText === 'CONNECTED';
+
+      // Capture and lock active pairing QR code to eliminate flickering/fade-out during background polls
+      if (data.qrCode) {
+        let qrSrc = data.qrCode;
+        if (typeof qrSrc === 'string' && !qrSrc.startsWith('data:image/') && !qrSrc.startsWith('http')) {
+          if (qrSrc.startsWith('<svg')) {
+            qrSrc = 'data:image/svg+xml;utf8,' + encodeURIComponent(qrSrc);
+          }
+        }
+        if (qrSrc && (qrSrc.startsWith('data:image/') || qrSrc.startsWith('http'))) {
+          activePairingQr = qrSrc;
+          isPairingActive = true;
+        }
+      }
 
       // Anti-flapping debounce:
       // If currently showing CONNECTED and background poll returned DISCONNECTED without manual user action,
@@ -6322,6 +6338,8 @@
       if (data.status === 'CONNECTED') {
         waConsecutiveDisconnected = 0;
         isUserInitiatedDisconnect = false;
+        activePairingQr = null;
+        isPairingActive = false;
       }
 
       if (data.pairingCode && codeDisplay && codeVal) {
@@ -6338,6 +6356,34 @@
         if (codeDisplay) codeDisplay.style.display = 'none';
         if (btnDisconnect) btnDisconnect.style.display = 'inline-block';
         if (btnConnect) btnConnect.innerText = '🔄 Re-Pair Device';
+      } else if (data.status === 'PAIRING_CODE_READY') {
+        if (badge) { badge.className = 'badge badge-info'; badge.innerText = 'CODE READY'; }
+        if (dot) dot.style.color = 'var(--info)';
+        if (title) title.innerText = 'Pairing Code Active';
+        if (phoneDisplay) phoneDisplay.innerText = `Awaiting code entry on WhatsApp handset for ${data.pairingPhone || 'device'}`;
+        if (qrBox) qrBox.style.display = 'none';
+        if (codeDisplay && data.pairingCode) {
+          codeDisplay.style.display = 'block';
+          if (codeVal) codeVal.innerText = data.pairingCode;
+        }
+        if (btnDisconnect) btnDisconnect.style.display = 'none';
+        if (btnConnect) btnConnect.innerText = '🔄 Refresh Session';
+      } else if (isPairingActive && activePairingQr && !isUserInitiatedDisconnect) {
+        // PRESERVE QR: Keep QR code continuously and stably displayed; never fade out during background polling cycles!
+        if (badge) { badge.className = 'badge badge-warning'; badge.innerText = 'QR READY'; }
+        if (dot) dot.style.color = 'var(--warning)';
+        if (title) title.innerText = 'Scan QR Code with WhatsApp';
+        if (phoneDisplay) phoneDisplay.innerText = 'Awaiting pairing scan from merchant WhatsApp handset';
+        if (qrBox) qrBox.style.display = 'inline-block';
+        if (qrImg) {
+          if (qrImg.src !== activePairingQr) {
+            qrImg.src = activePairingQr;
+          }
+          qrImg.style.display = 'block';
+        }
+        if (qrPlaceholder) qrPlaceholder.style.display = 'none';
+        if (btnDisconnect) btnDisconnect.style.display = 'none';
+        if (btnConnect) btnConnect.innerText = '🔄 Refresh QR Code';
       } else if (data.status === 'QR_READY') {
         if (badge) { badge.className = 'badge badge-warning'; badge.innerText = 'QR READY'; }
         if (dot) dot.style.color = 'var(--warning)';
@@ -6356,7 +6402,9 @@
           }
 
           if (qrSrc && (qrSrc.startsWith('data:image/') || qrSrc.startsWith('http'))) {
-            qrImg.src = qrSrc;
+            activePairingQr = qrSrc;
+            isPairingActive = true;
+            if (qrImg.src !== qrSrc) qrImg.src = qrSrc;
             qrImg.style.display = 'block';
             qrPlaceholder.style.display = 'none';
           } else {
@@ -6365,18 +6413,6 @@
             qrPlaceholder.innerText = 'Preparing pairing QR... Click "Refresh QR Code"';
           }
         }
-      } else if (data.status === 'PAIRING_CODE_READY') {
-        if (badge) { badge.className = 'badge badge-info'; badge.innerText = 'CODE READY'; }
-        if (dot) dot.style.color = 'var(--info)';
-        if (title) title.innerText = 'Pairing Code Active';
-        if (phoneDisplay) phoneDisplay.innerText = `Awaiting code entry on WhatsApp handset for ${data.pairingPhone || 'device'}`;
-        if (qrBox) qrBox.style.display = 'none';
-        if (codeDisplay && data.pairingCode) {
-          codeDisplay.style.display = 'block';
-          if (codeVal) codeVal.innerText = data.pairingCode;
-        }
-        if (btnDisconnect) btnDisconnect.style.display = 'none';
-        if (btnConnect) btnConnect.innerText = '🔄 Refresh Session';
       } else if (data.status === 'CONNECTING') {
         if (badge) { badge.className = 'badge badge-info'; badge.innerText = 'CONNECTING'; }
         if (dot) dot.style.color = 'var(--info)';
@@ -6430,7 +6466,8 @@
       }
 
       try {
-        const res = await fetch(`${API_BASE}/api/v1/admin/whatsapp/reconnect`, {
+        const merchantParam = (typeof currentMerchantId !== 'undefined' && currentMerchantId) ? `?merchantId=${encodeURIComponent(currentMerchantId)}` : '';
+        const res = await fetch(`${API_BASE}/api/v1/admin/whatsapp/reconnect${merchantParam}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
         });
@@ -6466,6 +6503,8 @@
         });
         const data = await res.json();
         if (data.success && data.pairingCode) {
+          activePairingQr = null;
+          isPairingActive = false;
           showAdminToast('WhatsApp 8-Digit Pairing Code received!');
           const codeBox = document.getElementById('waPairingCodeDisplay');
           const codeVal = document.getElementById('waPairingCodeVal');
@@ -6497,6 +6536,8 @@
     async function disconnectWhatsApp() {
       if (!confirm('Disconnect WhatsApp session and wipe credentials?')) return;
       isUserInitiatedDisconnect = true;
+      activePairingQr = null;
+      isPairingActive = false;
       waConsecutiveDisconnected = 99;
       const btn = document.getElementById('btnWaDisconnect');
       if (btn) btn.disabled = true;

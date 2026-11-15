@@ -1472,6 +1472,16 @@ export function registerAdminRoutes(server, ctx) {
     }
 
     let qr = berry.getQrCode();
+    if (!qr && merchant?.branding?.whatsappQr?.qrCode) {
+      const age = Date.now() - new Date(merchant.branding.whatsappQr.updatedAt || 0).getTime();
+      if (age < 120000 && effectiveStatus !== 'CONNECTED') {
+        qr = merchant.branding.whatsappQr.qrCode;
+        if (effectiveStatus === 'DISCONNECTED' || effectiveStatus === 'CONNECTING') {
+          effectiveStatus = 'QR_READY';
+        }
+      }
+    }
+
     if (!qr && berry.client?.lastQr) {
       const rawText = berry.client.lastQr;
       const dataUrl = await formatQrDataUrl(rawText);
@@ -1508,6 +1518,16 @@ export function registerAdminRoutes(server, ctx) {
     }
 
     let qr = berry.getQrCode();
+    if (!qr && merchant?.branding?.whatsappQr?.qrCode) {
+      const age = Date.now() - new Date(merchant.branding.whatsappQr.updatedAt || 0).getTime();
+      if (age < 120000 && effectiveStatus !== 'CONNECTED') {
+        qr = merchant.branding.whatsappQr.qrCode;
+        if (effectiveStatus === 'DISCONNECTED' || effectiveStatus === 'CONNECTING') {
+          effectiveStatus = 'QR_READY';
+        }
+      }
+    }
+
     if (!qr && berry.client?.lastQr) {
       const rawText = berry.client.lastQr;
       const dataUrl = await formatQrDataUrl(rawText);
@@ -1573,10 +1593,22 @@ export function registerAdminRoutes(server, ctx) {
         }
       }
 
+      const finalQr = qrPayload || qr?.dataUrl || qr?.raw || (typeof qr === 'string' ? qr : null);
+      if (finalQr && merchant) {
+        try {
+          const branding = typeof merchant.branding === 'object' && merchant.branding ? { ...merchant.branding } : {};
+          branding.whatsappQr = {
+            qrCode: finalQr,
+            updatedAt: new Date().toISOString()
+          };
+          ctx.merchantRepo.update(merchant.id, { branding });
+        } catch {}
+      }
+
       HttpServer.json(res, 200, {
         success: true,
         status: berry.getStatus(),
-        qrCode: qrPayload || qr?.dataUrl || qr?.raw || (typeof qr === 'string' ? qr : null)
+        qrCode: finalQr
       });
     } catch (err) {
       HttpServer.json(res, 500, { error: err.message });
@@ -1632,6 +1664,7 @@ export function registerAdminRoutes(server, ctx) {
           phoneNumber: null,
           disconnectedAt: new Date().toISOString()
         };
+        delete branding.whatsappQr;
         ctx.merchantRepo.update(merchant.id, { branding });
       }
     } catch (e) {

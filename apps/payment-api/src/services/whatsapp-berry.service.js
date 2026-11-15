@@ -163,6 +163,15 @@ export class WhatsAppBerryService extends EventEmitter {
               }
             });
           }
+        } else if (meta.status === 'QR_READY' && meta.qrCode) {
+          const age = Date.now() - new Date(meta.updatedAt || 0).getTime();
+          if (age < 120000) { // Keep active pairing QR for 2 minutes
+            this.status = 'QR_READY';
+            this.qrCode = meta.qrCode;
+          } else {
+            this.status = 'DISCONNECTED';
+            this.phoneNumber = null;
+          }
         } else {
           this.status = 'DISCONNECTED';
           this.phoneNumber = null;
@@ -361,10 +370,21 @@ export class WhatsAppBerryService extends EventEmitter {
 
         this.qrCode = {
           raw: rawText,
-          dataUrl
+          dataUrl,
+          createdAt: Date.now()
         };
         this.status = 'QR_READY';
         this.phoneNumber = null;
+
+        try {
+          fs.writeFileSync(this.metaFile, JSON.stringify({
+            status: 'QR_READY',
+            qrCode: this.qrCode,
+            sessionId: this.sessionId,
+            platform: 'BerryProtocol v0.1.10',
+            updatedAt: new Date().toISOString()
+          }, null, 2));
+        } catch {}
 
         console.log('[WhatsAppBerryService] Official WhatsApp Web pairing QR Code generated successfully.');
         this.emit('qr', this.qrCode);
