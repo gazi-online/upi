@@ -402,6 +402,10 @@ export class WhatsAppBerryService extends EventEmitter {
         }
       } catch {}
 
+      if (!phone && this.pairingPhone) {
+        phone = this.cleanPhoneNumber(this.pairingPhone);
+      }
+
       if (phone) {
         this.phoneNumber = phone;
       }
@@ -428,9 +432,11 @@ export class WhatsAppBerryService extends EventEmitter {
 
     this.client.on('connection.close', ({ reason, statusCode }) => {
       console.warn(`[WhatsAppBerryService] Connection closed: reason=${reason}, statusCode=${statusCode}`);
-      const isManual = reason === 'manual_logout' || statusCode === 401;
+      // NEVER treat transient socket drops or 401 connection timeouts as manual logouts!
+      // Only an explicit manual disconnect action by the user should wipe credentials.
+      const isExplicitManualLogout = reason === 'manual_logout';
 
-      if (isManual) {
+      if (isExplicitManualLogout) {
         this.status = 'DISCONNECTED';
         this.phoneNumber = null;
         this.cleanSessionFiles();
@@ -445,7 +451,19 @@ export class WhatsAppBerryService extends EventEmitter {
 
         // If session was already paired with a phone number, this is a transient connection cycle.
         // DO NOT set status = 'DISCONNECTED' to prevent frontend polling from flapping back and forth!
-        if (this.phoneNumber) {
+        const savedPhone = this.phoneNumber || (() => {
+          try {
+            if (fs.existsSync(this.metaFile)) {
+              const meta = JSON.parse(fs.readFileSync(this.metaFile, 'utf8'));
+              return meta.phoneNumber;
+            }
+          } catch {}
+          return null;
+        })();
+
+        if (savedPhone) {
+          this.phoneNumber = savedPhone;
+          this.status = 'CONNECTED';
           console.log(`[WhatsAppBerryService] Transient connection cycle for linked phone ${this.phoneNumber}. Maintaining CONNECTED status.`);
           if (this.shouldKeepPairingAlive !== false) {
             clearTimeout(this.reconnectTimer);
@@ -736,8 +754,10 @@ export class WhatsAppBerryService extends EventEmitter {
     } catch (err) {
       console.error(`[WhatsAppBerryService] Failed to send message to ${to}: ${err.message}`);
       if (err.message && (err.message.includes('Connection Closed') || err.message.includes('closed') || err.message.includes('socket'))) {
-        this.status = 'DISCONNECTED';
-        this.emit('status', this.status);
+        if (!this.phoneNumber) {
+          this.status = 'DISCONNECTED';
+          this.emit('status', this.status);
+        }
         console.log(`[WhatsAppBerryService] Detected broken socket during send. Triggering immediate reconnect...`);
         this.initialize().catch(() => {});
       }

@@ -6307,13 +6307,13 @@
 
       // Anti-flapping debounce:
       // If currently showing CONNECTED and background poll returned DISCONNECTED without manual user action,
-      // require at least 3 consecutive DISCONNECTED polls before wiping the connected display.
+      // require sustained DISCONNECTED polls before wiping the connected display.
       if (data.status === 'DISCONNECTED') {
         if (isManual || isUserInitiatedDisconnect) {
           waConsecutiveDisconnected = 99;
         } else if (isCurrentlyConnected) {
           waConsecutiveDisconnected++;
-          if (waConsecutiveDisconnected < 3) {
+          if (waConsecutiveDisconnected < 10) {
             return;
           }
         }

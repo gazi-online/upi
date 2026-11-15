@@ -1459,6 +1459,16 @@ export function registerAdminRoutes(server, ctx) {
       effectivePhone = savedPhone;
       berry.status = 'CONNECTED';
       berry.phoneNumber = savedPhone;
+    } else if (effectiveStatus === 'CONNECTED' && effectivePhone && merchant && savedConfig?.phoneNumber !== effectivePhone) {
+      try {
+        const branding = typeof merchant.branding === 'object' && merchant.branding ? { ...merchant.branding } : {};
+        branding.whatsappConfig = {
+          status: 'CONNECTED',
+          phoneNumber: effectivePhone,
+          updatedAt: new Date().toISOString()
+        };
+        ctx.merchantRepo.update(merchant.id, { branding });
+      } catch {}
     }
 
     let qr = berry.getQrCode();

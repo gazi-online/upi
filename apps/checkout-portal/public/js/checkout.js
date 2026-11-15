@@ -600,6 +600,19 @@
           });
           const sendData = await sendRes.json();
 
+          if (sendData.dispatch && sendData.dispatch.delivered === false) {
+            activeCustomer = data.customer || {
+              id: 'guest_' + clean,
+              name: data.customer?.name || currentAuthName || 'Customer',
+              mobileNumber: clean,
+              email: data.customer?.email || currentAuthEmail || ''
+            };
+            updateCustomerDisplay(activeCustomer);
+            setGatewayAuthMode(false);
+            showOptionToast('Proceeding directly to payment...');
+            return;
+          }
+
           const greetingEl = document.getElementById('authOtpGreeting');
           if (greetingEl) {
             greetingEl.innerHTML = `Welcome back, <strong>${escapeHtml(data.customer.name)}</strong>! Enter the 6-digit WhatsApp OTP:`;
@@ -623,6 +636,19 @@
             })
           });
           const sendData = await sendRes.json();
+
+          if (sendData.dispatch && sendData.dispatch.delivered === false) {
+            activeCustomer = {
+              id: 'guest_' + clean,
+              name: currentAuthName || 'Customer',
+              mobileNumber: clean,
+              email: currentAuthEmail || ''
+            };
+            updateCustomerDisplay(activeCustomer);
+            setGatewayAuthMode(false);
+            showOptionToast('Proceeding directly to payment...');
+            return;
+          }
 
           const greetingEl = document.getElementById('authOtpGreeting');
           if (greetingEl) {
@@ -683,6 +709,19 @@
         const data = await res.json();
 
         if (res.ok) {
+          if (data.dispatch && data.dispatch.delivered === false) {
+            activeCustomer = {
+              id: 'guest_' + String(currentAuthMobile || Date.now()).replace(/\D/g, ''),
+              name: name || currentAuthName || 'Customer',
+              mobileNumber: currentAuthMobile || '',
+              email: email || currentAuthEmail || ''
+            };
+            updateCustomerDisplay(activeCustomer);
+            setGatewayAuthMode(false);
+            showOptionToast('Proceeding directly to payment...');
+            return;
+          }
+
           const greetingEl = document.getElementById('authOtpGreeting');
           if (greetingEl) {
             greetingEl.innerHTML = `Hello <strong>${escapeHtml(name)}</strong>! Enter the 6-digit WhatsApp OTP:`;
