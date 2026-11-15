@@ -3965,9 +3965,13 @@
     })();
 
     const API_BASE = "{{API_BASE_URL}}";
-    let currentEnvMode = 'localhost';
+    // Auto-detect: if served from a non-localhost hostname (e.g. Vercel, custom domain),
+    // default to 'production' mode so the ENV badge and domain preview are correct from the start.
+    const _isCloudHost = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+    let currentEnvMode = _isCloudHost ? 'production' : 'localhost';
     let currentDomainPrefix = 'pay';
-    let currentDomainTld = '';
+    // Auto-seed domain TLD from the current hostname when running on a custom/cloud domain.
+    let currentDomainTld = _isCloudHost ? window.location.hostname : '';
     let currentSellingMode = 'ONLINE';
     let currentMerchantId = '00000000-0000-0000-0000-000000000001';
     let currentMerchantBranding = {};
@@ -5151,15 +5155,31 @@
           setVal('settingTermsUrl', branding.termsUrl);
 
           // Canonical Cloudflare Configuration & Environment
-          currentEnvMode = branding.envMode || mData.envMode || 'localhost';
+          // If the saved envMode is still the default 'localhost' but we're running on a
+          // real cloud hostname, keep the auto-detected 'production' mode (don't downgrade it).
+          const savedEnvMode = branding.envMode || mData.envMode || null;
+          if (savedEnvMode && !(savedEnvMode === 'localhost' && _isCloudHost)) {
+            currentEnvMode = savedEnvMode;
+          }
           currentDomainPrefix = branding.deploymentPrefix || branding.domainPrefix || mData.deploymentPrefix || mData.domainPrefix || 'pay';
-          currentDomainTld = branding.cloudflareDomain || branding.domainTld || mData.cloudflareDomain || mData.domainTld || '';
+          // Prefer saved domain TLD; fall back to the current hostname when on cloud.
+          const savedTld = branding.cloudflareDomain || branding.domainTld || mData.cloudflareDomain || mData.domainTld || '';
+          currentDomainTld = savedTld || (_isCloudHost ? window.location.hostname : '');
 
           setVal('settingDomainPrefix', currentDomainPrefix);
           setVal('settingDomainTld', currentDomainTld);
 
           setEnvMode(currentEnvMode, false);
           updateCloudflarePreview();
+
+          // If we auto-corrected the envMode or domain TLD from defaults, persist to DB silently.
+          const dbEnvMode = branding.envMode || mData.envMode || null;
+          const dbTld = branding.cloudflareDomain || branding.domainTld || mData.cloudflareDomain || mData.domainTld || '';
+          const needsAutoSave = (dbEnvMode !== currentEnvMode) || (!dbTld && currentDomainTld);
+          if (needsAutoSave && settingsLoaded === false) {
+            // settingsLoaded is set to true after this block, so saveDomainSettings is safe to call after a tick.
+            setTimeout(() => saveDomainSettings(false), 500);
+          }
 
           // Selling Mode
           const sellingMode = mData.sellingMode || branding.sellingMode || 'ONLINE';
@@ -5706,8 +5726,10 @@
     }
 
     async function saveDomainSettings(notify = true) {
-      const prefix = (document.getElementById('settingDomainPrefix')?.value || 'pay').trim().toLowerCase();
-      const tld = (document.getElementById('settingDomainTld')?.value || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+      const prefix = (document.getElementById('settingDomainPrefix')?.value || currentDomainPrefix || 'pay').trim().toLowerCase();
+      const rawTld = (document.getElementById('settingDomainTld')?.value || currentDomainTld || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+      // On cloud environments use the actual hostname as a fallback if the user left the TLD field blank.
+      const tld = rawTld || (_isCloudHost ? window.location.hostname : '');
       const customDomain = tld ? `https://${prefix}.${tld}` : '';
 
       currentDomainPrefix = prefix;
@@ -5718,6 +5740,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            merchantId: currentMerchantId,
             envMode: currentEnvMode,
             domainPrefix: prefix,
             domainTld: tld,
