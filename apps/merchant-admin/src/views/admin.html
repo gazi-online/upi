@@ -6308,10 +6308,14 @@
       // Anti-flapping debounce:
       // If currently showing CONNECTED and background poll returned DISCONNECTED without manual user action,
       // require at least 3 consecutive DISCONNECTED polls before wiping the connected display.
-      if (!isManual && !isUserInitiatedDisconnect && isCurrentlyConnected && data.status === 'DISCONNECTED') {
-        waConsecutiveDisconnected++;
-        if (waConsecutiveDisconnected < 3) {
-          return;
+      if (data.status === 'DISCONNECTED') {
+        if (isManual || isUserInitiatedDisconnect) {
+          waConsecutiveDisconnected = 99;
+        } else if (isCurrentlyConnected) {
+          waConsecutiveDisconnected++;
+          if (waConsecutiveDisconnected < 3) {
+            return;
+          }
         }
       }
 
@@ -6494,12 +6498,18 @@
       if (!confirm('Disconnect WhatsApp session and wipe credentials?')) return;
       isUserInitiatedDisconnect = true;
       waConsecutiveDisconnected = 99;
+      const btn = document.getElementById('btnWaDisconnect');
+      if (btn) btn.disabled = true;
       try {
         const merchantParam = (typeof currentMerchantId !== 'undefined' && currentMerchantId) ? `?merchantId=${encodeURIComponent(currentMerchantId)}` : '';
         await fetch(`${API_BASE}/api/v1/admin/whatsapp/disconnect${merchantParam}`, { method: 'POST' });
-        await fetchWhatsAppStatus(true);
+        updateWhatsAppUI({ status: 'DISCONNECTED', phoneNumber: null }, true);
         showAdminToast('WhatsApp session disconnected.');
-      } catch (e) { }
+      } catch (e) {
+        showAdminToast('Failed to disconnect WhatsApp session');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
     }
 
     // --- FLOATING CASHIER MODALS DOCK ---

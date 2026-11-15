@@ -1408,18 +1408,41 @@ export function registerAdminRoutes(server, ctx) {
     const berry = ctx.whatsappBerryService;
     const merchant = resolveMerchant(req);
     const savedConfig = merchant?.branding?.whatsappConfig;
-    const envPhone = process.env.DEFAULT_WHATSAPP_PHONE || process.env.WHATSAPP_PHONE;
-    const fallbackPhone = savedConfig?.phoneNumber || envPhone;
 
-    if (!berry) {
-      const effectiveStatus = fallbackPhone ? 'CONNECTED' : 'DISCONNECTED';
+    // Check if the merchant has explicitly disconnected
+    const isExplicitlyDisconnected = savedConfig?.status === 'DISCONNECTED';
+
+    if (isExplicitlyDisconnected) {
+      if (berry) {
+        berry.status = 'DISCONNECTED';
+        berry.phoneNumber = null;
+        berry.qrCode = null;
+        berry.pairingCode = null;
+        berry.pairingPhone = null;
+      }
       HttpServer.json(res, 200, {
         success: true,
-        status: effectiveStatus,
-        phoneNumber: fallbackPhone || null,
+        status: 'DISCONNECTED',
+        phoneNumber: null,
+        platform: 'BerryProtocol v0.1.10',
+        sessionId: berry?.sessionId || 'youpi_berry_session',
+        isConnected: false,
+        qrCode: null,
+        pairingCode: null,
+        pairingPhone: null
+      });
+      return;
+    }
+
+    if (!berry) {
+      const isSavedConnected = savedConfig?.status === 'CONNECTED' && savedConfig?.phoneNumber;
+      HttpServer.json(res, 200, {
+        success: true,
+        status: isSavedConnected ? 'CONNECTED' : 'DISCONNECTED',
+        phoneNumber: isSavedConnected ? savedConfig.phoneNumber : null,
         platform: 'BerryProtocol v0.1.10',
         qrCode: null,
-        isConnected: effectiveStatus === 'CONNECTED'
+        isConnected: Boolean(isSavedConnected)
       });
       return;
     }
@@ -1429,13 +1452,13 @@ export function registerAdminRoutes(server, ctx) {
     let effectivePhone = info.phoneNumber;
 
     // Cross-container serverless synchronization:
-    // If this container is currently DISCONNECTED, but database branding or environment variable
-    // confirms an active linked WhatsApp phone, maintain CONNECTED to avoid cross-container flapping!
-    if (effectiveStatus === 'DISCONNECTED' && fallbackPhone) {
+    // If this container is currently DISCONNECTED, but database branding confirms an active linked WhatsApp phone
+    const savedPhone = (savedConfig?.status === 'CONNECTED' && savedConfig?.phoneNumber) ? savedConfig.phoneNumber : null;
+    if (effectiveStatus === 'DISCONNECTED' && savedPhone) {
       effectiveStatus = 'CONNECTED';
-      effectivePhone = fallbackPhone;
+      effectivePhone = savedPhone;
       berry.status = 'CONNECTED';
-      berry.phoneNumber = fallbackPhone;
+      berry.phoneNumber = savedPhone;
     }
 
     let qr = berry.getQrCode();
@@ -1506,6 +1529,13 @@ export function registerAdminRoutes(server, ctx) {
     }
 
     try {
+      const merchant = resolveMerchant(req);
+      if (merchant && merchant.branding?.whatsappConfig?.status === 'DISCONNECTED') {
+        const branding = { ...merchant.branding };
+        delete branding.whatsappConfig;
+        ctx.merchantRepo.update(merchant.id, { branding });
+      }
+
       if (berry.getStatus() === 'DISCONNECTED') {
         await berry.initialize();
       } else {
@@ -1560,6 +1590,13 @@ export function registerAdminRoutes(server, ctx) {
     }
 
     try {
+      const merchant = resolveMerchant(req, body.merchantId);
+      if (merchant && merchant.branding?.whatsappConfig?.status === 'DISCONNECTED') {
+        const branding = { ...merchant.branding };
+        delete branding.whatsappConfig;
+        ctx.merchantRepo.update(merchant.id, { branding });
+      }
+
       const result = await berry.requestPairingCode(phoneNumber);
       HttpServer.json(res, 200, {
         success: true,
@@ -1578,13 +1615,17 @@ export function registerAdminRoutes(server, ctx) {
     const berry = ctx.whatsappBerryService;
     try {
       const merchant = resolveMerchant(req);
-      if (merchant && merchant.branding?.whatsappConfig) {
-        const branding = { ...merchant.branding };
-        delete branding.whatsappConfig;
+      if (merchant) {
+        const branding = typeof merchant.branding === 'object' && merchant.branding ? { ...merchant.branding } : {};
+        branding.whatsappConfig = {
+          status: 'DISCONNECTED',
+          phoneNumber: null,
+          disconnectedAt: new Date().toISOString()
+        };
         ctx.merchantRepo.update(merchant.id, { branding });
       }
     } catch (e) {
-      console.warn('[AdminRoutes] Error clearing whatsappConfig during disconnect:', e.message);
+      console.warn('[AdminRoutes] Error recording whatsappConfig during disconnect:', e.message);
     }
 
     if (!berry) {
