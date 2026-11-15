@@ -6286,6 +6286,9 @@
     function closeGmailGuideModal() { document.getElementById('gmailGuideModal').hidden = true; }
 
     // --- WHATSAPP BERRY PROTOCOL ---
+    let waConsecutiveDisconnected = 0;
+    let isUserInitiatedDisconnect = false;
+
     function updateWhatsAppUI(data, isManual = false) {
       if (!data) return;
       const badge = document.getElementById('waHeaderBadge');
@@ -6299,6 +6302,23 @@
       const btnConnect = document.getElementById('btnWaConnect');
       const codeDisplay = document.getElementById('waPairingCodeDisplay');
       const codeVal = document.getElementById('waPairingCodeVal');
+
+      const isCurrentlyConnected = badge && badge.innerText === 'CONNECTED';
+
+      // Anti-flapping debounce:
+      // If currently showing CONNECTED and background poll returned DISCONNECTED without manual user action,
+      // require at least 3 consecutive DISCONNECTED polls before wiping the connected display.
+      if (!isManual && !isUserInitiatedDisconnect && isCurrentlyConnected && data.status === 'DISCONNECTED') {
+        waConsecutiveDisconnected++;
+        if (waConsecutiveDisconnected < 3) {
+          return;
+        }
+      }
+
+      if (data.status === 'CONNECTED') {
+        waConsecutiveDisconnected = 0;
+        isUserInitiatedDisconnect = false;
+      }
 
       if (data.pairingCode && codeDisplay && codeVal) {
         codeDisplay.style.display = 'block';
@@ -6386,7 +6406,8 @@
 
     async function fetchWhatsAppStatus(isManual = false) {
       try {
-        const res = await fetch(`${API_BASE}/api/v1/admin/whatsapp/status`);
+        const merchantParam = (typeof currentMerchantId !== 'undefined' && currentMerchantId) ? `?merchantId=${encodeURIComponent(currentMerchantId)}` : '';
+        const res = await fetch(`${API_BASE}/api/v1/admin/whatsapp/status${merchantParam}`);
         if (!res.ok) return;
         const data = await res.json();
         updateWhatsAppUI(data, isManual);
@@ -6471,9 +6492,12 @@
 
     async function disconnectWhatsApp() {
       if (!confirm('Disconnect WhatsApp session and wipe credentials?')) return;
+      isUserInitiatedDisconnect = true;
+      waConsecutiveDisconnected = 99;
       try {
-        await fetch(`${API_BASE}/api/v1/admin/whatsapp/disconnect`, { method: 'POST' });
-        await fetchWhatsAppStatus();
+        const merchantParam = (typeof currentMerchantId !== 'undefined' && currentMerchantId) ? `?merchantId=${encodeURIComponent(currentMerchantId)}` : '';
+        await fetch(`${API_BASE}/api/v1/admin/whatsapp/disconnect${merchantParam}`, { method: 'POST' });
+        await fetchWhatsAppStatus(true);
         showAdminToast('WhatsApp session disconnected.');
       } catch (e) { }
     }

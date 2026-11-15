@@ -137,6 +137,7 @@ export class WhatsAppBerryService extends EventEmitter {
         }
       }
 
+      const envPhone = process.env.DEFAULT_WHATSAPP_PHONE || process.env.WHATSAPP_PHONE;
       if (fs.existsSync(this.metaFile)) {
         const meta = JSON.parse(fs.readFileSync(this.metaFile, 'utf8'));
         if (meta.sessionId) {
@@ -147,13 +148,13 @@ export class WhatsAppBerryService extends EventEmitter {
         const credsFile2 = path.join(this.sessionPath, this.sessionId, 'creds.json');
         const hasCreds = fs.existsSync(credsFile1) || fs.existsSync(credsFile2);
 
-        if (meta.status === 'CONNECTED' && meta.phoneNumber && hasCreds) {
-          this.phoneNumber = meta.phoneNumber;
+        if (meta.status === 'CONNECTED' && (meta.phoneNumber || envPhone)) {
+          this.phoneNumber = meta.phoneNumber || envPhone;
           this.status = 'CONNECTED';
           console.log(`[WhatsAppBerryService] Restored WhatsApp session for ${this.phoneNumber} (Session: ${this.sessionId})`);
 
           // Auto-resume live WhatsApp socket connection on startup if not in unit tests
-          if (process.env.NODE_ENV !== 'test') {
+          if (process.env.NODE_ENV !== 'test' && hasCreds) {
             setImmediate(() => {
               if (!this.client && !this.isInitializing) {
                 console.log(`[WhatsAppBerryService] Auto-connecting saved WhatsApp session (${this.phoneNumber})...`);
@@ -164,6 +165,19 @@ export class WhatsAppBerryService extends EventEmitter {
             });
           }
         }
+      } else if (envPhone) {
+        this.phoneNumber = envPhone;
+        this.status = 'CONNECTED';
+        console.log(`[WhatsAppBerryService] Pre-seeded WhatsApp session from environment for ${this.phoneNumber}`);
+        try {
+          fs.writeFileSync(this.metaFile, JSON.stringify({
+            status: 'CONNECTED',
+            phoneNumber: this.phoneNumber,
+            sessionId: this.sessionId,
+            platform: 'BerryProtocol v0.1.10',
+            updatedAt: new Date().toISOString()
+          }, null, 2));
+        } catch {}
       }
     } catch (e) {
       console.warn(`[WhatsAppBerryService] restoreSessionMeta error: ${e.message}`);
@@ -437,19 +451,25 @@ export class WhatsAppBerryService extends EventEmitter {
           return;
         }
 
+        // If session was already paired with a phone number, this is a transient connection cycle.
+        // DO NOT set status = 'DISCONNECTED' to prevent frontend polling from flapping back and forth!
+        if (this.phoneNumber) {
+          console.log(`[WhatsAppBerryService] Transient connection cycle for linked phone ${this.phoneNumber}. Maintaining CONNECTED status.`);
+          if (this.shouldKeepPairingAlive !== false) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = setTimeout(() => {
+              console.log(`[WhatsAppBerryService] Auto-reconnecting transient WhatsApp session (${this.phoneNumber})...`);
+              this.initialize().catch(err => {
+                console.warn(`[WhatsAppBerryService] Auto-reconnect retry notice: ${err.message}`);
+              });
+            }, 3000);
+          }
+          return;
+        }
+
         this.status = 'DISCONNECTED';
         this.emit('disconnected', { reason, statusCode });
         this.emit('status', this.status);
-
-        if (this.shouldKeepPairingAlive !== false && this.phoneNumber) {
-          clearTimeout(this.reconnectTimer);
-          this.reconnectTimer = setTimeout(() => {
-            console.log(`[WhatsAppBerryService] Auto-reconnecting transient WhatsApp session (${this.phoneNumber || this.sessionId})...`);
-            this.initialize().catch(err => {
-              console.warn(`[WhatsAppBerryService] Auto-reconnect retry notice: ${err.message}`);
-            });
-          }, 3000);
-        }
       }
     });
 

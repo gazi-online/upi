@@ -1383,22 +1383,61 @@ export function registerAdminRoutes(server, ctx) {
   });
 
   // --- WHATSAPP BERRY PROTOCOL MERCHANT SESSION CONFIGURATION ---
+  if (ctx.whatsappBerryService && typeof ctx.whatsappBerryService.on === 'function') {
+    ctx.whatsappBerryService.on('ready', (info) => {
+      try {
+        const defaultMerchantId = '00000000-0000-0000-0000-000000000001';
+        const merchant = ctx.merchantRepo.findById(defaultMerchantId) || (ctx.merchantRepo.getDefault ? ctx.merchantRepo.getDefault() : null);
+        if (merchant) {
+          const branding = typeof merchant.branding === 'object' && merchant.branding ? { ...merchant.branding } : {};
+          branding.whatsappConfig = {
+            status: 'CONNECTED',
+            phoneNumber: info.phoneNumber || ctx.whatsappBerryService.phoneNumber,
+            updatedAt: new Date().toISOString()
+          };
+          ctx.merchantRepo.update(merchant.id, { branding });
+        }
+      } catch (err) {
+        console.warn('[AdminRoutes] Failed to record whatsappConfig in merchant branding:', err.message);
+      }
+    });
+  }
 
   // GET /api/v1/admin/whatsapp/status
   server.get('/api/v1/admin/whatsapp/status', async (req, res) => {
     const berry = ctx.whatsappBerryService;
+    const merchant = resolveMerchant(req);
+    const savedConfig = merchant?.branding?.whatsappConfig;
+    const envPhone = process.env.DEFAULT_WHATSAPP_PHONE || process.env.WHATSAPP_PHONE;
+    const fallbackPhone = savedConfig?.phoneNumber || envPhone;
+
     if (!berry) {
+      const effectiveStatus = fallbackPhone ? 'CONNECTED' : 'DISCONNECTED';
       HttpServer.json(res, 200, {
         success: true,
-        status: 'DISCONNECTED',
-        phoneNumber: null,
+        status: effectiveStatus,
+        phoneNumber: fallbackPhone || null,
         platform: 'BerryProtocol v0.1.10',
-        qrCode: null
+        qrCode: null,
+        isConnected: effectiveStatus === 'CONNECTED'
       });
       return;
     }
 
     const info = berry.getClientInfo();
+    let effectiveStatus = info.status;
+    let effectivePhone = info.phoneNumber;
+
+    // Cross-container serverless synchronization:
+    // If this container is currently DISCONNECTED, but database branding or environment variable
+    // confirms an active linked WhatsApp phone, maintain CONNECTED to avoid cross-container flapping!
+    if (effectiveStatus === 'DISCONNECTED' && fallbackPhone) {
+      effectiveStatus = 'CONNECTED';
+      effectivePhone = fallbackPhone;
+      berry.status = 'CONNECTED';
+      berry.phoneNumber = fallbackPhone;
+    }
+
     let qr = berry.getQrCode();
     if (!qr && berry.client?.lastQr) {
       const rawText = berry.client.lastQr;
@@ -1416,11 +1455,11 @@ export function registerAdminRoutes(server, ctx) {
 
     HttpServer.json(res, 200, {
       success: true,
-      status: info.status,
-      phoneNumber: info.phoneNumber,
+      status: effectiveStatus,
+      phoneNumber: effectivePhone,
       platform: info.platform,
       sessionId: info.sessionId,
-      isConnected: info.isConnected,
+      isConnected: effectiveStatus === 'CONNECTED',
       qrCode: qrPayload || qr?.dataUrl || qr?.raw || (typeof qr === 'string' ? qr : null),
       pairingCode: info.pairingCode || null,
       pairingPhone: info.pairingPhone || null
@@ -1537,6 +1576,17 @@ export function registerAdminRoutes(server, ctx) {
   // POST /api/v1/admin/whatsapp/disconnect - Disconnect Active Session and Wipe Credentials
   server.post('/api/v1/admin/whatsapp/disconnect', async (req, res) => {
     const berry = ctx.whatsappBerryService;
+    try {
+      const merchant = resolveMerchant(req);
+      if (merchant && merchant.branding?.whatsappConfig) {
+        const branding = { ...merchant.branding };
+        delete branding.whatsappConfig;
+        ctx.merchantRepo.update(merchant.id, { branding });
+      }
+    } catch (e) {
+      console.warn('[AdminRoutes] Error clearing whatsappConfig during disconnect:', e.message);
+    }
+
     if (!berry) {
       HttpServer.json(res, 200, { success: true, status: 'DISCONNECTED' });
       return;
