@@ -252,19 +252,19 @@ export function registerCustomerRoutes(server, ctx) {
 
     console.log(`[CustomerAuth] OTP generated for +91${cleanMobile} (expires in 5 mins)`);
 
-    const shouldExposeOtp = (process.env.YOUPI_EXPOSE_DEV_OTP === 'true' && process.env.NODE_ENV !== 'production') ||
-      Boolean(process.env.VERCEL) ||
-      !dispatchResult.delivered;
+    // Strictly protect OTP security: Never expose or leak OTP in production responses.
+    // devOtp is only permitted in automated test suites (NODE_ENV === 'test') or explicit dev override.
+    const isTestOrExplicitDev = process.env.NODE_ENV === 'test' ||
+      (process.env.YOUPI_EXPOSE_DEV_OTP === 'true' && process.env.NODE_ENV !== 'production');
 
     HttpServer.json(res, 200, {
       success: true,
       message: dispatchResult.delivered
         ? 'OTP sent to your WhatsApp number.'
-        : `[Demo Mode] WhatsApp observer not linked. Use OTP: ${otpCode}`,
+        : (isTestOrExplicitDev ? `[Test Mode] Use OTP: ${otpCode}` : 'Verification code sent to your mobile number.'),
       mobileNumber: cleanMobile,
       expiresInSeconds: 300,
-      // Expose devOtp when explicitly requested, in test/dev, or in cloud serverless when WhatsApp is unlinked
-      devOtp: shouldExposeOtp ? otpCode : undefined,
+      devOtp: isTestOrExplicitDev ? otpCode : undefined,
       dispatch: dispatchResult
     });
   });
