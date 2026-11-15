@@ -94,6 +94,7 @@
     { "source": "/js/store.js", "destination": { "service": "coin-wallet-store" } },
     { "source": "/internal/gmail/(.*)", "destination": { "service": "gmail-observer" } },
     { "source": "/internal/sms/(.*)", "destination": { "service": "sms-observer" } },
+    { "source": "/youpi-sms-gateway.apk", "destination": "/api/v1/admin/sms-gateway/download-apk" },
     { "source": "/(.*)", "destination": { "service": "checkout-portal" } }
   ]
 }

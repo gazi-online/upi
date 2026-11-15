@@ -712,7 +712,15 @@ export function registerPollerRoutes(server, ctx) {
 
     // Canonical runtime URL derivation (Part C2)
     const runtime = resolveRuntimeUrls(merchant?.branding || {});
-    const baseUrl = runtime.apiUrl;
+    let baseUrl = runtime.apiUrl;
+
+    // Dynamically resolve public URL for mobile device QR pairing (e.g. https://www.droidnur.eu.org)
+    if (process.env.PUBLIC_APP_URL && !process.env.PUBLIC_APP_URL.includes('localhost')) {
+      baseUrl = process.env.PUBLIC_APP_URL.replace(/\/+$/, '');
+    } else if (req.headers?.host && !req.headers.host.includes('localhost') && !req.headers.host.includes('127.0.0.1')) {
+      const proto = req.headers['x-forwarded-proto'] || 'https';
+      baseUrl = `${proto}://${req.headers.host}`;
+    }
     const token = enrollmentSecret;
     const sessionId = crypto.randomUUID();
     const expiresAt = Date.now() + (10 * 60 * 1000); // 10 minutes
