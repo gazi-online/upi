@@ -215,14 +215,23 @@ export function runMigrations(targetDb) {
   // Seed default UPI receiving account if none
   const accountRepo = new ReceivingAccountRepository(db);
   const accounts = accountRepo.findByMerchantId(defaultMerchant.id);
+  const defaultUpiId = (process.env.DEFAULT_MERCHANT_VPA || process.env.DEFAULT_UPI_VPA || process.env.UPI_ID || 'merchant@upi').trim().toLowerCase();
+  const defaultPayeeName = (process.env.DEFAULT_PAYEE_NAME || defaultMerchant.businessName || 'Store').trim();
+
   if (accounts.length === 0) {
     accountRepo.create({
       id: '00000000-0000-0000-0000-000000000002',
       merchantId: defaultMerchant.id,
-      upiId: 'merchant@upi',
-      payeeName: defaultMerchant.businessName,
+      upiId: defaultUpiId,
+      payeeName: defaultPayeeName,
       isActive: true
     });
+  } else if (process.env.DEFAULT_MERCHANT_VPA || process.env.DEFAULT_UPI_VPA || process.env.UPI_ID) {
+    const targetVpa = (process.env.DEFAULT_MERCHANT_VPA || process.env.DEFAULT_UPI_VPA || process.env.UPI_ID).trim().toLowerCase();
+    const demoAcc = accounts.find(a => a.id === '00000000-0000-0000-0000-000000000002' || a.upiId === 'merchant@upi');
+    if (demoAcc && demoAcc.upiId !== targetVpa) {
+      accountRepo.upsertActiveForMerchant(defaultMerchant.id, targetVpa, defaultPayeeName);
+    }
   }
 
   // Demo customer seeding is opt-in and never carries real personal data.

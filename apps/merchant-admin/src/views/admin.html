@@ -3973,7 +3973,9 @@
     // Auto-seed domain TLD from the current hostname when running on a custom/cloud domain.
     let currentDomainTld = _isCloudHost ? window.location.hostname : '';
     let currentSellingMode = 'ONLINE';
-    let currentMerchantId = '00000000-0000-0000-0000-000000000001';
+    let currentMerchantId = (function () {
+      try { return localStorage.getItem('youpi_active_merchant_id') || '00000000-0000-0000-0000-000000000001'; } catch { return '00000000-0000-0000-0000-000000000001'; }
+    })();
     let currentMerchantBranding = {};
     let settingsLoaded = false;
     let pollingTimer = null;
@@ -8011,6 +8013,25 @@
         if (!res.ok) return;
         const data = await res.json();
         merchantsList = data.merchants || [];
+
+        // Check if saved merchant ID is valid
+        let targetId = null;
+        try { targetId = localStorage.getItem('youpi_active_merchant_id'); } catch {}
+        if (targetId && merchantsList.some(m => m.id === targetId)) {
+          if (currentMerchantId !== targetId) {
+            currentMerchantId = targetId;
+            fetchGatewaySettings();
+          }
+        } else if (currentMerchantId === '00000000-0000-0000-0000-000000000001') {
+          // If the user has a custom merchant (non-demo), auto-select it by default
+          const custom = merchantsList.find(m => m.slug !== 'demo-store' && m.id !== '00000000-0000-0000-0000-000000000001');
+          if (custom) {
+            currentMerchantId = custom.id;
+            try { localStorage.setItem('youpi_active_merchant_id', currentMerchantId); } catch {}
+            fetchGatewaySettings();
+          }
+        }
+
         renderMerchantSelector();
       } catch (err) {
         console.warn('[Admin] Failed to fetch merchants list:', err);
@@ -8034,6 +8055,7 @@
     async function onMerchantSwitch(merchantId) {
       if (!merchantId || merchantId === currentMerchantId) return;
       currentMerchantId = merchantId;
+      try { localStorage.setItem('youpi_active_merchant_id', currentMerchantId); } catch {}
       showAdminToast(`Switched store context.`, true);
       await fetchGatewaySettings();
       renderMerchantCredentials();
@@ -8119,6 +8141,7 @@
         showAdminToast(`Merchant '${name}' onboarded successfully!`, true);
         await fetchMerchantsList();
         currentMerchantId = data.merchant.id;
+        try { localStorage.setItem('youpi_active_merchant_id', currentMerchantId); } catch {}
         renderMerchantSelector();
         await loadMerchantSettings();
         renderMerchantCredentials(data.merchant);
