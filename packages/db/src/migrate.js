@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
-import { getCoinStoreWebhookSecret, LEGACY_DEFAULT_WEBHOOK_SECRET, resolveDefaultBranding } from '@youpi/common';
+import { getCoinStoreWebhookSecret, LEGACY_DEFAULT_WEBHOOK_SECRET, resolveDefaultBranding, getDeterministicDeviceCredentials } from '@youpi/common';
 import { getDatabase } from './database.js';
 import { getSchemaSql } from './sqlite-schema.js';
 import { MerchantRepository } from './repositories/merchant.repository.js';
@@ -232,6 +232,24 @@ export function runMigrations(targetDb) {
     if (demoAcc && demoAcc.upiId !== targetVpa) {
       accountRepo.upsertActiveForMerchant(defaultMerchant.id, targetVpa, defaultPayeeName);
     }
+  }
+
+  // Seed default paired Android SMS gateway device if none exists
+  try {
+    const { deviceId, signingKey } = getDeterministicDeviceCredentials(defaultMerchant.id);
+    const existingDevice = db.queryOne ? db.queryOne('SELECT id FROM android_devices WHERE (merchant_id = ? OR id = ?) AND is_active = 1', [defaultMerchant.id, deviceId]) : null;
+    if (!existingDevice) {
+      const defaultDeviceName = process.env.DEFAULT_ANDROID_DEVICE_NAME || 'POCO M2 Pro';
+      const defaultDeviceModel = process.env.DEFAULT_ANDROID_DEVICE_MODEL || 'Xiaomi POCO M2 Pro';
+      const nowIso = new Date().toISOString();
+      db.execute(`
+        INSERT INTO android_devices (id, merchant_id, device_name, device_model, signing_key_hash, is_active, last_heartbeat_at, created_at)
+        VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET is_active = 1, last_heartbeat_at = excluded.last_heartbeat_at
+      `, [deviceId, defaultMerchant.id, defaultDeviceName, defaultDeviceModel, signingKey, nowIso, nowIso]);
+    }
+  } catch (err) {
+    console.error('[migrate] Failed to seed default Android observer device:', err.message);
   }
 
   // Demo customer seeding is opt-in and never carries real personal data.

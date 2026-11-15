@@ -5865,7 +5865,7 @@
 
     async function fetchSmsGatewayDevices() {
       try {
-        const res = await fetch(`${API_BASE}/api/v1/admin/sms-gateway/devices`);
+        const res = await fetch(`${API_BASE}/api/v1/admin/sms-gateway/devices?merchantId=${encodeURIComponent(currentMerchantId)}`);
         if (!res.ok) return;
         const data = await res.json();
         const tbody = document.getElementById('smsDevicesTableBody');
@@ -5875,11 +5875,11 @@
         const devices = data.devices || [];
         if (badge) {
           badge.className = devices.length > 0 ? 'badge badge-success' : 'badge badge-info';
-          badge.innerText = devices.length > 0 ? `${devices.length} PAIRED` : 'STANDBY';
+          badge.innerText = devices.length > 0 ? `${devices.length} PAIRED (ACTIVE)` : 'STANDBY';
         }
         if (devBadge) {
           devBadge.className = devices.length > 0 ? 'badge badge-success' : 'badge badge-info';
-          devBadge.innerText = devices.length > 0 ? `${devices.length} PAIRED` : 'STANDBY';
+          devBadge.innerText = devices.length > 0 ? `${devices.length} PAIRED (ACTIVE)` : 'STANDBY';
         }
 
         if (!tbody) return;
@@ -5889,13 +5889,20 @@
         }
 
         tbody.innerHTML = devices.map(d => {
-          const name = d.deviceName || d.device_name || d.deviceModel || 'Android Observer';
+          const name = d.deviceName || d.device_name || 'POCO M2 Pro';
+          const model = d.deviceModel || d.device_model || '';
           const id = d.deviceId || d.id || '-';
-          const rawTime = d.pairedAt || d.createdAt || d.created_at;
+          const rawTime = d.lastHeartbeatAt || d.last_heartbeat_at || d.pairedAt || d.createdAt || d.created_at;
           const timeStr = rawTime ? new Date(rawTime).toLocaleTimeString() : 'Active';
+          const displayTitle = (model && model !== name) ? `${name} (${model})` : name;
           return `
         <tr>
-          <td><strong>${escapeHtml(name)}</strong></td>
+          <td>
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981; box-shadow:0 0 6px #10b981;"></span>
+              <strong>${escapeHtml(displayTitle)}</strong>
+            </div>
+          </td>
           <td><code style="font-size:0.75rem; color:var(--info);">${escapeHtml(id)}</code></td>
           <td><span style="font-size:0.75rem; color:var(--text-muted);">${timeStr}</span></td>
           <td>
@@ -5911,7 +5918,7 @@
       const box = document.getElementById('smsPairQrBox');
       if (!box) return;
       try {
-        const res = await fetch(`${API_BASE}/api/v1/admin/sms-gateway/pair-qr`);
+        const res = await fetch(`${API_BASE}/api/v1/admin/sms-gateway/pair-qr?merchantId=${encodeURIComponent(currentMerchantId)}`);
         if (!res.ok) throw new Error();
         const data = await res.json();
         const qrSvg = data.pairingQrSvg || data.qrSvg;

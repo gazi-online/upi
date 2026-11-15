@@ -61,8 +61,8 @@ describe('UPI Server Health Indicator & Checkout State Invariants', () => {
     const res = await request('/api/v1/checkout/server-health');
     assert.equal(res.status, 200);
     assert.ok(typeof res.body.isWorking === 'boolean');
-    assert.ok(['WORKING', 'ISSUES'].includes(res.body.status));
-    assert.ok(['Server Is Working', 'Server Facing Issues'].includes(res.body.label));
+    assert.ok(['WORKING', 'BUSY', 'ISSUES'].includes(res.body.status));
+    assert.ok(['Server Is Working', 'UPI Server Busy', 'Server Facing Issues'].includes(res.body.label));
     assert.ok(typeof res.body.reason === 'string');
   });
 

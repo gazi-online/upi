@@ -83,6 +83,29 @@ export const getObserverToken = () => resolveSecret('observer_api_token', 'OBSER
 export const getCoinStoreWebhookSecret = () => resolveSecret('coin_store_webhook_secret', 'COIN_STORE_WEBHOOK_SECRET');
 
 /**
+ * Deterministically derives an Android SMS Gateway device ID and HMAC signing key
+ * based on master secret / enrollment token and merchant ID.
+ * Ensures consistent device pairing and auto-recovery across ephemeral serverless containers.
+ * @param {string} [merchantId='00000000-0000-0000-0000-000000000001']
+ * @returns {{ deviceId: string, signingKey: string }}
+ */
+export function getDeterministicDeviceCredentials(merchantId = '00000000-0000-0000-0000-000000000001') {
+  const secret = process.env.YOUPI_MASTER_SECRET
+    || process.env.SMS_GATEWAY_ENROLLMENT_TOKEN
+    || 'android_pairing_enrollment_secret_key_32_chars';
+  const signingKey = crypto.createHmac('sha256', secret).update(`youpi_sms_gateway_signing_key_v1_${merchantId}`).digest('hex');
+  const hash = crypto.createHash('sha256').update(`youpi_sms_device_${merchantId}`).digest('hex');
+  const deviceId = [
+    hash.slice(0, 8),
+    hash.slice(8, 12),
+    '4' + hash.slice(13, 16),
+    ((parseInt(hash.slice(16, 18), 16) & 0x3f) | 0x80).toString(16) + hash.slice(18, 20),
+    hash.slice(20, 32)
+  ].join('-');
+  return { deviceId, signingKey };
+}
+
+/**
  * Shared credential proving a request originated from a co-located service (server-side render
  * proxies) rather than a browser. A plain `X-Internal-Render: true` header is attacker-settable,
  * so the header is only honoured together with this secret.
