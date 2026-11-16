@@ -376,7 +376,11 @@ export const BANKING_AND_MESSAGING_PACKAGES: readonly string[] = Object.freeze([
   'com.hdfcbank.payzapp',
   'com.bankofbaroda.mconnect',
   'com.infrasofttech.indianbank',
-  'com.fedmobile'
+  'com.fedmobile',
+  'com.paytm.business',
+  'com.phonepe.app.business',
+  'com.google.android.apps.nbu.paisa.merchant',
+  'com.bharatpe.app'
 ]);
 
 /**
