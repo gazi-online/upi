@@ -608,25 +608,6 @@
           });
           const sendData = await sendRes.json();
 
-          if (sendData.dispatch && sendData.dispatch.delivered === false) {
-            isGuestCheckout = true;
-            try {
-              if (PAYMENT_ID) sessionStorage.setItem('ypg_guest_' + PAYMENT_ID, '1');
-            } catch { }
-            activeCustomer = data.customer || {
-              id: 'guest_' + clean,
-              name: data.customer?.name || currentAuthName || 'Customer',
-              mobileNumber: clean,
-              email: data.customer?.email || currentAuthEmail || ''
-            };
-            savePreservedIdentity(activeCustomer, null);
-            updateCustomerDisplay(activeCustomer);
-            setGatewayAuthMode(false);
-            showOptionToast('Proceeding directly to payment...');
-            loadState();
-            return;
-          }
-
           const greetingEl = document.getElementById('authOtpGreeting');
           if (greetingEl) {
             greetingEl.innerHTML = `Welcome back, <strong>${escapeHtml(data.customer.name)}</strong>! Enter the 6-digit WhatsApp OTP:`;
@@ -650,25 +631,6 @@
             })
           });
           const sendData = await sendRes.json();
-
-          if (sendData.dispatch && sendData.dispatch.delivered === false) {
-            isGuestCheckout = true;
-            try {
-              if (PAYMENT_ID) sessionStorage.setItem('ypg_guest_' + PAYMENT_ID, '1');
-            } catch { }
-            activeCustomer = {
-              id: 'guest_' + clean,
-              name: currentAuthName || 'Customer',
-              mobileNumber: clean,
-              email: currentAuthEmail || ''
-            };
-            savePreservedIdentity(activeCustomer, null);
-            updateCustomerDisplay(activeCustomer);
-            setGatewayAuthMode(false);
-            showOptionToast('Proceeding directly to payment...');
-            loadState();
-            return;
-          }
 
           const greetingEl = document.getElementById('authOtpGreeting');
           if (greetingEl) {
@@ -729,25 +691,6 @@
         const data = await res.json();
 
         if (res.ok) {
-          if (data.dispatch && data.dispatch.delivered === false) {
-            isGuestCheckout = true;
-            try {
-              if (PAYMENT_ID) sessionStorage.setItem('ypg_guest_' + PAYMENT_ID, '1');
-            } catch { }
-            activeCustomer = {
-              id: 'guest_' + String(currentAuthMobile || Date.now()).replace(/\D/g, ''),
-              name: name || currentAuthName || 'Customer',
-              mobileNumber: currentAuthMobile || '',
-              email: email || currentAuthEmail || ''
-            };
-            savePreservedIdentity(activeCustomer, null);
-            updateCustomerDisplay(activeCustomer);
-            setGatewayAuthMode(false);
-            showOptionToast('Proceeding directly to payment...');
-            loadState();
-            return;
-          }
-
           const greetingEl = document.getElementById('authOtpGreeting');
           if (greetingEl) {
             greetingEl.innerHTML = `Hello <strong>${escapeHtml(name)}</strong>! Enter the 6-digit WhatsApp OTP:`;
