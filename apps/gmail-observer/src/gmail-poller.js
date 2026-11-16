@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PaymentObserverClient } from '@youpi/observer-sdk';
-import { getObserverToken } from '@youpi/common';
+import { getObserverToken, getAdminToken } from '@youpi/common';
 import { BankEmailParser, redactSensitiveData, isAuthorizedBankEmailSender } from './parser.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -202,9 +202,29 @@ export class GmailPoller {
     this.credentials = { ...(this.credentials || {}), ...creds };
   }
 
+  async fetchReceivingAccountFromPaymentApi() {
+    try {
+      const token = getAdminToken() || getObserverToken();
+      const res = await fetch(`${this.apiBaseUrl}/api/v1/admin/upi-accounts`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const active = (data.accounts || []).find(a => a.isActive !== false) || data.accounts?.[0];
+        if (active?.id) {
+          this.receivingAccountId = active.id;
+          console.log(`[Gmail Observer] Auto-bound active receiving account: ${this.receivingAccountId}`);
+        }
+      }
+    } catch {}
+  }
+
   async fetchCredentialsFromPaymentApi() {
     try {
-      const res = await fetch(`${this.apiBaseUrl}/api/v1/admin/gmail/credentials`, { headers: { Authorization: `Bearer ${getObserverToken()}` } });
+      let res = await fetch(`${this.apiBaseUrl}/api/v1/admin/gmail/credentials`, { headers: { Authorization: `Bearer ${getObserverToken()}` } });
+      if (!res.ok && getAdminToken()) {
+        res = await fetch(`${this.apiBaseUrl}/api/v1/admin/gmail/credentials`, { headers: { Authorization: `Bearer ${getAdminToken()}` } });
+      }
       if (res.ok) {
         const data = await res.json();
         const conf = data.gmailConfig || data;

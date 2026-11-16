@@ -560,6 +560,25 @@
       otpCooldownTimer = setInterval(updateUI, 1000);
     }
 
+    function handleOtpDispatchResponse(data) {
+      const fallbackCode = data?.fallbackOtp || data?.devOtp || (data?.dispatch && data.dispatch.delivered === false ? data.dispatch.otpCode : null);
+      const noticeEl = document.getElementById('authOtpNotice');
+      const otpInput = document.getElementById('authOtpInput');
+      if (fallbackCode) {
+        if (noticeEl) {
+          noticeEl.style.display = 'block';
+          noticeEl.innerHTML = `📲 WhatsApp gateway offline. One-Time Code: <strong style="letter-spacing:2px; font-size:1.1rem; color:var(--ypg-primary, #2563eb);">${escapeHtml(fallbackCode)}</strong>`;
+        }
+        if (otpInput) {
+          otpInput.value = fallbackCode;
+        }
+        showOptionToast(data.message || `Verification Code: ${fallbackCode}`);
+      } else {
+        if (noticeEl) noticeEl.style.display = 'none';
+        showOptionToast(data?.message || 'OTP sent to your WhatsApp number!');
+      }
+    }
+
     async function handleAuthMobileSubmit() {
       const input = document.getElementById('authMobileInput');
       const btn = document.getElementById('btnAuthContinue');
@@ -614,7 +633,7 @@
           }
 
           goToAuthStep('otp');
-          showOptionToast(sendData.message || 'OTP sent to your WhatsApp number!');
+          handleOtpDispatchResponse(sendData);
         } else if (savedMatch) {
           // Known customer in browser saved accounts -> dispatch OTP directly with saved profile
           currentAuthName = savedMatch.name || 'Customer';
@@ -638,7 +657,7 @@
           }
 
           goToAuthStep('otp');
-          showOptionToast(sendData.message || 'OTP sent to your WhatsApp number!');
+          handleOtpDispatchResponse(sendData);
         } else {
           // New customer -> prompt for name and email
           goToAuthStep('signup');
@@ -696,7 +715,7 @@
             greetingEl.innerHTML = `Hello <strong>${escapeHtml(name)}</strong>! Enter the 6-digit WhatsApp OTP:`;
           }
           goToAuthStep('otp');
-          showOptionToast(data.message || 'WhatsApp verification code sent!');
+          handleOtpDispatchResponse(data);
         } else {
           showOptionToast(data.error || 'Failed to send WhatsApp OTP.');
         }
@@ -807,12 +826,7 @@
           if (greetingEl) {
             greetingEl.innerHTML = `Enter the 6-digit WhatsApp OTP:`;
           }
-          showOptionToast(data.message || 'Fresh OTP dispatched to your WhatsApp number!');
-          const otpInput = document.getElementById('authOtpInput');
-          if (otpInput) {
-            otpInput.value = '';
-            otpInput.focus();
-          }
+          handleOtpDispatchResponse(data);
         } else {
           showOptionToast(data.error || 'Failed to resend OTP.');
         }
@@ -885,7 +899,7 @@
         if (badge) badge.innerText = '+91 ' + clean;
 
         goToAuthStep('otp');
-        showOptionToast('WhatsApp verification code sent!');
+        handleOtpDispatchResponse(data);
       } catch (err) {
         console.error('[Select Saved Account Error]:', err);
         showOptionToast('Network error sending WhatsApp OTP.');
