@@ -78,6 +78,8 @@
         const cleanCust = {
           id: cust.id,
           name: cust.name || cust.fullName || 'Customer',
+          mobileNumber: cust.mobileNumber || cust.phoneNumber || '',
+          email: cust.email || '',
           status: cust.status || 'ACTIVE'
         };
         const resolvedToken = token || activeToken || getStoredCustomerToken() || null;
@@ -423,6 +425,12 @@
     let hasAttemptedAutoLogin = false;
     let otpCooldownTimer = null;
     let otpCooldownSec = 0;
+    let isGuestCheckout = false;
+    try {
+      if (PAYMENT_ID && sessionStorage.getItem('ypg_guest_' + PAYMENT_ID) === '1') {
+        isGuestCheckout = true;
+      }
+    } catch { }
 
     function setGatewayAuthMode(isAuthView) {
       const authEl = document.getElementById('preGatewayAuthView');
@@ -601,15 +609,21 @@
           const sendData = await sendRes.json();
 
           if (sendData.dispatch && sendData.dispatch.delivered === false) {
+            isGuestCheckout = true;
+            try {
+              if (PAYMENT_ID) sessionStorage.setItem('ypg_guest_' + PAYMENT_ID, '1');
+            } catch { }
             activeCustomer = data.customer || {
               id: 'guest_' + clean,
               name: data.customer?.name || currentAuthName || 'Customer',
               mobileNumber: clean,
               email: data.customer?.email || currentAuthEmail || ''
             };
+            savePreservedIdentity(activeCustomer, null);
             updateCustomerDisplay(activeCustomer);
             setGatewayAuthMode(false);
             showOptionToast('Proceeding directly to payment...');
+            loadState();
             return;
           }
 
@@ -638,15 +652,21 @@
           const sendData = await sendRes.json();
 
           if (sendData.dispatch && sendData.dispatch.delivered === false) {
+            isGuestCheckout = true;
+            try {
+              if (PAYMENT_ID) sessionStorage.setItem('ypg_guest_' + PAYMENT_ID, '1');
+            } catch { }
             activeCustomer = {
               id: 'guest_' + clean,
               name: currentAuthName || 'Customer',
               mobileNumber: clean,
               email: currentAuthEmail || ''
             };
+            savePreservedIdentity(activeCustomer, null);
             updateCustomerDisplay(activeCustomer);
             setGatewayAuthMode(false);
             showOptionToast('Proceeding directly to payment...');
+            loadState();
             return;
           }
 
@@ -710,15 +730,21 @@
 
         if (res.ok) {
           if (data.dispatch && data.dispatch.delivered === false) {
+            isGuestCheckout = true;
+            try {
+              if (PAYMENT_ID) sessionStorage.setItem('ypg_guest_' + PAYMENT_ID, '1');
+            } catch { }
             activeCustomer = {
               id: 'guest_' + String(currentAuthMobile || Date.now()).replace(/\D/g, ''),
               name: name || currentAuthName || 'Customer',
               mobileNumber: currentAuthMobile || '',
               email: email || currentAuthEmail || ''
             };
+            savePreservedIdentity(activeCustomer, null);
             updateCustomerDisplay(activeCustomer);
             setGatewayAuthMode(false);
             showOptionToast('Proceeding directly to payment...');
+            loadState();
             return;
           }
 
@@ -740,14 +766,21 @@
     }
 
     window.handleContinueAsGuest = function() {
+      isGuestCheckout = true;
+      try {
+        if (PAYMENT_ID) sessionStorage.setItem('ypg_guest_' + PAYMENT_ID, '1');
+      } catch { }
       activeCustomer = {
         id: 'guest_' + Math.random().toString(36).substring(2, 9),
-        name: 'Guest User',
-        mobileNumber: currentAuthMobile || ''
+        name: currentAuthName || 'Guest User',
+        mobileNumber: currentAuthMobile || '',
+        email: currentAuthEmail || ''
       };
+      savePreservedIdentity(activeCustomer, null);
       updateCustomerDisplay(activeCustomer);
       setGatewayAuthMode(false);
       showOptionToast('Continuing as Guest User');
+      loadState();
     };
 
     async function handleAuthVerifyOtpSubmit() {
@@ -2059,12 +2092,10 @@
                 loadState();
               }
             } else if (res.status === 401) {
-              clearPreservedIdentity();
-              activeCustomer = null;
+              // Token rejected by server (e.g. serverless instance restart or expired token)
+              // Clear stale token so we don't spam the server, but NEVER kick the user out of the payment flow!
               activeToken = null;
-              setGatewayAuthMode(true);
-              goToAuthStep('mobile');
-              renderSavedAccountsUI();
+              try { localStorage.removeItem('ypg_customer_token'); } catch {}
             }
           } catch (e) {
           } finally {
@@ -2083,7 +2114,13 @@
           activeToken = preserved.token || activeToken;
         }
       }
-      const hasCustomer = Boolean(data.customer || activeCustomer);
+      const isSessionActive = ['ACTIVE', 'PROCESSING', 'QUEUED', 'SUCCESS', 'CANCELLED', 'EXPIRED', 'FAILED'].includes(data.status);
+      const hasCustomer = Boolean(
+        data.customer ||
+        activeCustomer ||
+        isGuestCheckout ||
+        isSessionActive
+      );
 
       if (!hasCustomer) {
         setGatewayAuthMode(true);
@@ -2096,13 +2133,15 @@
         return;
       }
 
-      // Authenticated Customer
+      // Authenticated Customer / Active Session
       if (activeCustomer) {
         updateCustomerDisplay(activeCustomer);
         // Automatically bind customer to the payment session if session is INITIATED or unbound
         if (activeToken && PAYMENT_ID && (!data.customer || data.status === 'INITIATED')) {
           window.autoBindCustomerToSession(activeCustomer.id, activeToken);
         }
+      } else {
+        updateCustomerDisplay(null);
       }
       setGatewayAuthMode(false);
 

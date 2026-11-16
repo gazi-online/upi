@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { generateQrSvg, generateStandSvg, generateStandHtml, formatIndianMobile } from '@youpi/core';
 import { getInternalServiceToken, buildStandUpiUri, toPaise } from '@youpi/common';
+import { BRANDING_CONFIG } from './config/branding.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,13 +36,13 @@ export function frameAncestorOrigins(raw = process.env.CHECKOUT_FRAME_ANCESTORS)
       if ((url.protocol === 'https:' || url.protocol === 'http:') && entry.replace(/\/$/, '') === url.origin) {
         origins.push(url.origin);
       }
-    } catch {}
+    } catch { }
   }
   if (process.env.PUBLIC_APP_URL) {
-    try { origins.push(new URL(process.env.PUBLIC_APP_URL).origin); } catch {}
+    try { origins.push(new URL(process.env.PUBLIC_APP_URL).origin); } catch { }
   }
   if (process.env.CHECKOUT_PUBLIC_URL) {
-    try { origins.push(new URL(process.env.CHECKOUT_PUBLIC_URL).origin); } catch {}
+    try { origins.push(new URL(process.env.CHECKOUT_PUBLIC_URL).origin); } catch { }
   }
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
     origins.push(`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`);
@@ -170,7 +171,7 @@ if (!process.env.BASE_PAYMENT_API_URL && typeof process.loadEnvFile === 'functio
     if (fs.existsSync(rootEnv)) {
       process.loadEnvFile(rootEnv);
     }
-  } catch {}
+  } catch { }
 }
 
 export class CheckoutServer {
@@ -193,7 +194,7 @@ export class CheckoutServer {
           }
         }
       }
-    } catch {}
+    } catch { }
 
     this.apiBaseUrl = options.apiBaseUrl || process.env.PAYMENT_API_URL || process.env.BASE_PAYMENT_API_URL || 'http://localhost:6100';
     this.htmlTemplatePath = path.join(__dirname, 'views', 'checkout.html');
@@ -224,7 +225,7 @@ export class CheckoutServer {
           if (partialPath.startsWith(partialsDir) && fs.existsSync(partialPath)) {
             return fs.readFileSync(partialPath, 'utf8');
           }
-        } catch {}
+        } catch { }
         return match;
       });
       return content;
@@ -236,16 +237,26 @@ export class CheckoutServer {
   renderHtml(paymentId, state) {
     let html = this.loadTemplateWithPartials();
 
-    const appName = state?.branding?.appName || (process.env.DEFAULT_APP_NAME || '').trim() || 'YouPI PG';
-    const primaryColor = state?.branding?.primaryColor || (process.env.DEFAULT_PRIMARY_COLOR || '').trim() || '#0b63e5';
-    const merchantName = state?.merchantName || 'Merchant Checkout';
+    const mergedBranding = {
+      ...BRANDING_CONFIG,
+      ...(state?.branding || {})
+    };
+    const appName = state?.branding?.appName || (process.env.DEFAULT_APP_NAME || '').trim() || BRANDING_CONFIG.appName || 'Mitto Pay';
+    const primaryColor = state?.branding?.primaryColor || (process.env.DEFAULT_PRIMARY_COLOR || '').trim() || BRANDING_CONFIG.primaryColor || '#0b63e5';
+    const merchantName = state?.merchantName || BRANDING_CONFIG.businessName || 'Merchant Checkout';
     const orderId = state?.orderId || '';
-    const logoUrl = state?.branding?.logoUrl || (process.env.DEFAULT_LOGO_URL || '').trim() || '';
-    const sidebarNotice = state?.branding?.sidebarNotice || 'Fast & Secure 256-Bit Encrypted Payments';
-    const counterInstructions = state?.branding?.counterInstructions || 'Please visit the billing counter and present this screen to the cashier.';
+    const logoUrl = state?.branding?.logoUrl || (process.env.DEFAULT_LOGO_URL || '').trim() || BRANDING_CONFIG.logoUrl || '';
+    const sidebarNotice = state?.branding?.sidebarNotice || BRANDING_CONFIG.sidebarNotice || 'Fast & Secure 256-Bit Encrypted Payments';
+    const counterInstructions = state?.branding?.counterInstructions || BRANDING_CONFIG.counterInstructions || 'Please visit the billing counter and present this screen to the cashier.';
     const footerGuarantee = state?.branding?.footerGuarantee || (process.env.DEFAULT_FOOTER_GUARANTEE || '').trim() || `Secured by ${appName} & 256-Bit Bank Encryption`;
-    const trustBadgeText = state?.branding?.trustBadgeText || (process.env.DEFAULT_TRUST_BADGE_TEXT || '').trim() || `${appName} Verified Business`;
+    const trustBadgeText = state?.branding?.trustBadgeText || (process.env.DEFAULT_TRUST_BADGE_TEXT || '').trim() || (process.env.DEFAULT_APP_NAME ? `${process.env.DEFAULT_APP_NAME} Verified Business` : (BRANDING_CONFIG.trustBadgeText || `${appName} Verified Business`));
     const vpa = state?.payeeVpa || state?.vpa || 'merchant@upi';
+
+    const mergedState = {
+      ...state,
+      merchantName: state?.merchantName || merchantName,
+      branding: mergedBranding
+    };
 
     // In production and localhost, use relative '' so browser requests hit the checkout portal /api proxy
     // This avoids cross-origin blocking, CORS errors, and tunnel DNS resolution issues.
@@ -304,7 +315,7 @@ export class CheckoutServer {
       PC_CARD_STYLE: pcCardStyle,
       DOWNTIME_ALT_BTN_DISPLAY: downtimeAltBtnDisplay,
       DOWNTIME_ALT_BTN_LABEL: downtimeAltBtnLabel,
-      INITIAL_STATE_JSON: serializeForScript(state || {})
+      INITIAL_STATE_JSON: serializeForScript(mergedState)
     });
   }
 
@@ -434,9 +445,9 @@ export class CheckoutServer {
         if (isSecure && fs.existsSync(assetPath)) {
           const contentType = assetFolder === 'css' ? 'text/css; charset=utf-8'
             : assetFolder === 'js' ? 'application/javascript; charset=utf-8'
-            : assetName.endsWith('.png') ? 'image/png'
-            : assetName.endsWith('.svg') ? 'image/svg+xml'
-            : 'application/octet-stream';
+              : assetName.endsWith('.png') ? 'image/png'
+                : assetName.endsWith('.svg') ? 'image/svg+xml'
+                  : 'application/octet-stream';
           res.writeHead(200, {
             'Content-Type': contentType,
             'Cache-Control': 'public, max-age=86400',
@@ -524,7 +535,7 @@ export class CheckoutServer {
         if (amountStr && mode !== 'static') {
           try {
             amountPaise = toPaise(amountStr);
-          } catch {}
+          } catch { }
         }
 
         const svg = generateStandSvg({
