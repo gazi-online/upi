@@ -226,12 +226,16 @@ export class PaymentVerificationPipeline {
 
     // Invariant Guard: Bounded rawText boundary to prevent ReDoS (CWE-400)
     if (input.rawText && typeof input.rawText === 'string' && input.rawText.length > MAX_SCAN_CHARS) {
-      return buildResult({
-        finalStatus: 'REJECTED',
-        failingStage: 1,
-        failingCondition: 'PAYLOAD_TOO_LARGE',
-        failingReason: `Transaction notification payload exceeds maximum allowable length of ${MAX_SCAN_CHARS} characters (received ${input.rawText.length}).`
-      });
+      if (rawNormalizedSource === 'GMAIL') {
+        input.rawText = input.rawText.slice(0, MAX_SCAN_CHARS);
+      } else {
+        return buildResult({
+          finalStatus: 'REJECTED',
+          failingStage: 1,
+          failingCondition: 'PAYLOAD_TOO_LARGE',
+          failingReason: `Transaction notification payload exceeds maximum allowable length of ${MAX_SCAN_CHARS} characters (received ${input.rawText.length}).`
+        });
+      }
     }
 
     // 0. Resolve Payment Session and Customer Context early for security attribution

@@ -332,7 +332,7 @@ export class GmailPoller {
       return { accepted: false, rejected: true, reason: 'MALFORMED_OR_NON_CREDIT' };
     }
 
-    const rawContent = `${email.subject || ''}\n${email.body || ''}`.trim();
+    const rawContent = `${email.subject || ''}\n${parsed?.rawSnippet || email.body || ''}`.trim().slice(0, 4000);
 
     try {
       const result = await this.observerClient.submitObservation({
@@ -347,7 +347,7 @@ export class GmailPoller {
         rawPayload: {
           messageId: messageId || `gmail_${Date.now()}`,
           subject: email.subject || '',
-          body: email.body || '',
+          body: (email.body || '').substring(0, 4000),
           snippet: parsed?.rawSnippet || (email.body || '').substring(0, 200),
           from: sender,
           sender,
