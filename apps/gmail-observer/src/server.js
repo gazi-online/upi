@@ -132,8 +132,7 @@ export class GmailObserverServer {
         }
         let clientId = '';
         let configuredRedirectUri = '';
-        const isLocalhost = process.env.YOUPI_MODE === 'localhost' || !process.env.YOUPI_MODE || this.poller.apiBaseUrl?.includes('vvisa.in') || this.poller.apiBaseUrl?.includes('gauravtesting.online');
-        const apiBase = isLocalhost ? `http://127.0.0.1:${process.env.PAYMENT_API_PORT || 6100}` : (this.poller.apiBaseUrl || `http://127.0.0.1:${process.env.PAYMENT_API_PORT || 6100}`);
+        const apiBase = process.env.PAYMENT_API_URL || this.poller.apiBaseUrl || (process.env.YOUPI_MODE === 'localhost' ? `http://127.0.0.1:${process.env.PAYMENT_API_PORT || 6100}` : (process.env.BASE_PAYMENT_API_URL || `http://127.0.0.1:${process.env.PAYMENT_API_PORT || 6100}`));
         try {
           const credRes = await fetch(`${apiBase}/api/v1/admin/gmail/credentials`, { headers: { Authorization: `Bearer ${getObserverToken()}` } });
           if (credRes.ok) {
@@ -189,8 +188,7 @@ export class GmailObserverServer {
           let clientId = '';
           let clientSecret = '';
           let callbackRedirectUri = '';
-          const isLocalhost = process.env.YOUPI_MODE === 'localhost' || !process.env.YOUPI_MODE || this.poller.apiBaseUrl?.includes('vvisa.in') || this.poller.apiBaseUrl?.includes('gauravtesting.online');
-          const apiBase = isLocalhost ? `http://127.0.0.1:${process.env.PAYMENT_API_PORT || 6100}` : (this.poller.apiBaseUrl || `http://127.0.0.1:${process.env.PAYMENT_API_PORT || 6100}`);
+          const apiBase = process.env.PAYMENT_API_URL || this.poller.apiBaseUrl || (process.env.YOUPI_MODE === 'localhost' ? `http://127.0.0.1:${process.env.PAYMENT_API_PORT || 6100}` : (process.env.BASE_PAYMENT_API_URL || `http://127.0.0.1:${process.env.PAYMENT_API_PORT || 6100}`));
 
           try {
             const credRes = await fetch(`${apiBase}/api/v1/admin/gmail/credentials`, { headers: { Authorization: `Bearer ${getObserverToken()}` } });
@@ -270,7 +268,8 @@ export class GmailObserverServer {
           const nowIso = new Date().toISOString();
           // Persist credentials to Payment API
           try {
-            await fetch(`${apiBase}/api/v1/admin/gmail/credentials`, {
+            console.log(`[Gmail Observer] Persisting credentials to payment-api at ${apiBase}...`);
+            const persistRes = await fetch(`${apiBase}/api/v1/admin/gmail/credentials`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getObserverToken()}` },
               body: JSON.stringify({
@@ -285,6 +284,11 @@ export class GmailObserverServer {
                 status: 'CONNECTED'
               })
             });
+            if (persistRes.ok) {
+              console.log(`[Gmail Observer] Successfully saved credentials in payment-api for ${userEmail}`);
+            } else {
+              console.warn(`[Gmail Observer] payment-api returned HTTP ${persistRes.status} saving credentials`);
+            }
           } catch (e) {
             console.error('[Gmail Observer] Failed to persist credentials to payment-api:', e.message);
           }
