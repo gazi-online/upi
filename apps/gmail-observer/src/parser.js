@@ -170,9 +170,9 @@ export class BankEmailParser {
     }
 
     // 2. Extract Bank Reference / UTR Number
-    // Matches: UTR: 123456789012, Ref no: UTR-HDFC-9911, Ref: UTR-GMAIL-777, UPI/CR/123456789/, UPI Ref 086704470482
+    // Matches: UTR: 123456789012, Order ID: ICI6fdda172cc12488094a76386e5e5be0f, Ref no: UTR-HDFC-9911, Ref: UTR-GMAIL-777, UPI/CR/123456789/, UPI Ref 086704470482
     let bankRef;
-    const refMatch = combinedText.match(/(?:utr(?:\s*no\.?)?|ref(?:\s*no\.?|\s*num)?|txn(?:\s*id)?|rrn(?:\s*no\.?)?|upi\s*ref(?:erence)?)[:\s#=-]+([a-zA-Z0-9\-_]{6,35})/i);
+    const refMatch = combinedText.match(/(?:utr(?:\s*no\.?)?|ref(?:\s*no\.?|\s*num)?|txn(?:\s*id)?|order\s*(?:id|no\.?)?|rrn(?:\s*no\.?)?|upi\s*ref(?:erence)?)[:\s#=-]+([a-zA-Z0-9\-_]{6,35})/i);
     if (refMatch && refMatch[1]) {
       bankRef = refMatch[1].trim();
     } else {
@@ -189,7 +189,7 @@ export class BankEmailParser {
 
     // 3. Extract Sender VPA
     let senderVpa;
-    const vpaMatch = combinedText.match(/(?:from|by)\s+([a-zA-Z0-9.\-_]{2,100}@[a-zA-Z0-9.\-_]{2,64})/i);
+    const vpaMatch = combinedText.match(/(?:from|by)(?:\s+(?:bhim\s+upi|upi|user))?\s+([a-zA-Z0-9.\-_xX]{2,100}@[a-zA-Z0-9.\-_]{2,64})/i);
     if (vpaMatch && vpaMatch[1]) {
       senderVpa = vpaMatch[1].trim().replace(/[.,;]+$/, '');
     }

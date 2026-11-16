@@ -34,7 +34,15 @@ function extractBodyFromGmailPayload(payload) {
       if (part.mimeType === mimeType && part.body?.data) {
         try {
           const text = Buffer.from(part.body.data, 'base64url').toString('utf8');
-          return mimeType === 'text/html' ? text.replace(/<[^>]+>/g, ' ') : text;
+          if (mimeType === 'text/html') {
+            return text
+              .replace(/&#8377;/g, '₹')
+              .replace(/&rupee;/gi, '₹')
+              .replace(/&nbsp;/g, ' ')
+              .replace(/&amp;/g, '&')
+              .replace(/<[^>]+>/g, ' ');
+          }
+          return text;
         } catch {}
       }
     }

@@ -537,7 +537,7 @@ export class PaymentVerificationPipeline {
     }
 
     if (!bankRef && isGmailSource) {
-      const generalRefMatch = rawText.match(/(?:utr|ref(?:\s*no\.?)?|txn\s*(?:id|ref)?|rrn)[:\s#]+([a-zA-Z0-9\-_]{6,35})/i) ||
+      const generalRefMatch = rawText.match(/(?:utr|ref(?:\s*no\.?)?|txn\s*(?:id|ref)?|order\s*(?:id|no\.?)?|rrn)[:\s#]+([a-zA-Z0-9\-_]{6,35})/i) ||
         rawText.match(/UPI\/CR\/([a-zA-Z0-9\-_]+)/i);
       if (generalRefMatch && generalRefMatch[1]) {
         bankRef = generalRefMatch[1].trim();
