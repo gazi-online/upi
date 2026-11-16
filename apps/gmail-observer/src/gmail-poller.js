@@ -235,9 +235,22 @@ export class GmailPoller {
             refreshToken: conf.refreshToken,
             connectedEmail: conf.connectedEmail
           });
+          return;
         }
       }
     } catch {}
+
+    const envClientId = (process.env.GMAIL_CLIENT_ID || '').trim();
+    const envClientSecret = (process.env.GMAIL_CLIENT_SECRET || '').trim();
+    const envRefreshToken = (process.env.GMAIL_REFRESH_TOKEN || '').trim();
+    if (envClientId && envClientSecret && envRefreshToken && !envClientId.startsWith('your-') && !envClientId.startsWith('demo-')) {
+      this.setCredentials({
+        clientId: envClientId,
+        clientSecret: envClientSecret,
+        refreshToken: envRefreshToken,
+        connectedEmail: (process.env.GMAIL_CONNECTED_EMAIL || '').trim() || null
+      });
+    }
   }
 
   async getAccessToken() {
@@ -399,8 +412,8 @@ export class GmailPoller {
       const accessToken = await this.getAccessToken();
       if (!accessToken) return;
 
-      // Strict bank transaction alert filter (read-only search)
-      const query = encodeURIComponent('from:(bank.in OR hdfcbank.net OR hdfcbank.com OR icicibank.com OR sbi.co.in OR axisbank.com OR kotak.com) OR (credit OR credited OR received OR upi OR deposit OR alert OR update)');
+      // Strict bank & UPI transaction alert filter (read-only search)
+      const query = encodeURIComponent('from:(bank.in OR hdfcbank.net OR hdfcbank.com OR icicibank.com OR sbi.co.in OR axisbank.com OR kotak.com OR paytm.com OR phonepe.com OR google.com OR bharatpe.com) OR (credit OR credited OR received OR upi OR deposit OR alert OR update)');
 
       let pageToken = this.nextCatchUpPageToken || null;
       let pagesFetched = 0;

@@ -1918,25 +1918,32 @@ export function registerAdminRoutes(server, ctx) {
     const branding = merchant?.branding || {};
     const gmailConfig = branding.gmailConfig || {};
 
+    const envClientId = (process.env.GMAIL_CLIENT_ID || '').trim();
+    const envClientSecret = (process.env.GMAIL_CLIENT_SECRET || '').trim();
+    const envRefreshToken = (process.env.GMAIL_REFRESH_TOKEN || '').trim();
+    const effectiveClientId = gmailConfig.clientId || (!envClientId.startsWith('your-') && !envClientId.startsWith('demo-') ? envClientId : '');
+    const effectiveClientSecret = gmailConfig.clientSecret || (!envClientSecret.startsWith('your-') && !envClientSecret.startsWith('demo-') ? envClientSecret : '');
+    const effectiveRefreshToken = gmailConfig.refreshToken || (!envRefreshToken.startsWith('your-') && !envRefreshToken.startsWith('demo-') ? envRefreshToken : '');
+
     const redirectUri = resolveGmailRedirectUri(branding);
-    const hasToken = Boolean(gmailConfig.refreshToken && gmailConfig.refreshToken.trim());
+    const hasToken = Boolean(effectiveRefreshToken && effectiveRefreshToken.trim());
 
     HttpServer.json(res, 200, {
       gmailConfig: {
-        clientId: gmailConfig.clientId || '',
-        clientSecret: gmailConfig.clientSecret || '',
-        hasClientSecret: Boolean(gmailConfig.clientSecret),
-        refreshToken: gmailConfig.refreshToken || '',
+        clientId: effectiveClientId,
+        clientSecret: effectiveClientSecret,
+        hasClientSecret: Boolean(effectiveClientSecret),
+        refreshToken: effectiveRefreshToken,
         apiKey: gmailConfig.apiKey || '',
-        connectedEmail: gmailConfig.connectedEmail || null,
+        connectedEmail: gmailConfig.connectedEmail || process.env.GMAIL_CONNECTED_EMAIL || null,
         lastTestedAt: gmailConfig.lastTestedAt || null
       },
-      clientId: gmailConfig.clientId || '',
-      clientSecret: gmailConfig.clientSecret || '',
-      hasClientSecret: Boolean(gmailConfig.clientSecret),
-      refreshToken: gmailConfig.refreshToken || '',
+      clientId: effectiveClientId,
+      clientSecret: effectiveClientSecret,
+      hasClientSecret: Boolean(effectiveClientSecret),
+      refreshToken: effectiveRefreshToken,
       apiKey: gmailConfig.apiKey || '',
-      connectedEmail: gmailConfig.connectedEmail || null,
+      connectedEmail: gmailConfig.connectedEmail || process.env.GMAIL_CONNECTED_EMAIL || null,
       redirectUri,
       oauthStatus: hasToken ? 'CONNECTED' : 'DISCONNECTED',
       tokenStatus: hasToken ? 'VALID REFRESH TOKEN (OFFLINE READY)' : 'MISSING',

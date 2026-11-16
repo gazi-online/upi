@@ -11,7 +11,24 @@ export const AUTHORIZED_BANK_EMAIL_DOMAINS = [
   'icicibank.com',
   'sbi.co.in',
   'axisbank.com',
-  'kotak.com'
+  'kotak.com',
+  'paytm.com',
+  'phonepe.com',
+  'google.com',
+  'bharatpe.com',
+  'cred.club',
+  'amazonpay.in',
+  'amazon.in',
+  'idfcfirstbank.com',
+  'rblbank.com',
+  'indusind.com',
+  'federalbank.co.in',
+  'canarabank.com',
+  'pnb.co.in',
+  'bankofbaroda.com',
+  'bankofbaroda.co.in',
+  'unionbankofindia.co.in',
+  'yesbank.in'
 ];
 
 /**
