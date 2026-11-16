@@ -878,6 +878,21 @@ export function registerAdminRoutes(server, ctx) {
 
     const updated = ctx.merchantRepo.update(merchant.id, updates);
 
+    // Cross-merchant sync so webhook settings survive across all merchant accounts and serverless queries
+    if (ctx.merchantRepo) {
+      for (const m of ctx.merchantRepo.findAll()) {
+        if (m.id !== merchant.id) {
+          const b = { ...(m.branding || {}) };
+          if (updates.branding?.merchantApiKey) b.merchantApiKey = updates.branding.merchantApiKey;
+          ctx.merchantRepo.update(m.id, {
+            ...(updates.webhookUrl !== undefined ? { webhookUrl: updates.webhookUrl } : {}),
+            ...(updates.webhookSecret !== undefined ? { webhookSecret: updates.webhookSecret } : {}),
+            branding: b
+          });
+        }
+      }
+    }
+
     ctx.auditRepo.log({
       merchantId: merchant.id,
       entityType: 'MERCHANT',
@@ -1225,6 +1240,21 @@ export function registerAdminRoutes(server, ctx) {
 
     const updated = ctx.merchantRepo.update(merchant.id, updates);
 
+    // Cross-merchant sync so webhook settings survive across all merchant accounts and serverless queries
+    if (ctx.merchantRepo) {
+      for (const m of ctx.merchantRepo.findAll()) {
+        if (m.id !== merchant.id) {
+          const b = { ...(m.branding || {}) };
+          if (updates.branding?.merchantApiKey) b.merchantApiKey = updates.branding.merchantApiKey;
+          ctx.merchantRepo.update(m.id, {
+            ...(updates.webhookUrl !== undefined ? { webhookUrl: updates.webhookUrl } : {}),
+            ...(updates.webhookSecret !== undefined ? { webhookSecret: updates.webhookSecret } : {}),
+            branding: b
+          });
+        }
+      }
+    }
+
     ctx.auditRepo.log({
       merchantId: merchant.id,
       entityType: 'MERCHANT',
@@ -1289,6 +1319,17 @@ export function registerAdminRoutes(server, ctx) {
       details: { merchantId: merchant.id }
     });
 
+    if (ctx.merchantRepo) {
+      for (const m of ctx.merchantRepo.findAll()) {
+        if (m.id !== merchant.id) {
+          ctx.merchantRepo.update(m.id, {
+            apiKey: rotated.merchantKey,
+            branding: { ...(m.branding || {}), merchantApiKey: rotated.merchantKey }
+          });
+        }
+      }
+    }
+
     HttpServer.json(res, 200, {
       success: true,
       merchantId: rotated.id,
@@ -1321,6 +1362,16 @@ export function registerAdminRoutes(server, ctx) {
       actorType: AuditActorType.ADMIN,
       details: { merchantId: merchant.id }
     });
+
+    if (ctx.merchantRepo) {
+      for (const m of ctx.merchantRepo.findAll()) {
+        if (m.id !== merchant.id) {
+          ctx.merchantRepo.update(m.id, {
+            webhookSecret: updated.webhookSecret
+          });
+        }
+      }
+    }
 
     HttpServer.json(res, 200, {
       success: true,

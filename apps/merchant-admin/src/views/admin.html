@@ -5150,12 +5150,46 @@
             if (el) el.checked = Boolean(checked);
           };
 
+          let cachedSecrets = {};
+          try {
+            cachedSecrets = JSON.parse(localStorage.getItem('youpi_saved_merchant_secrets') || '{}');
+          } catch {}
+
+          const effectiveWebhookUrl = mData.webhookUrl || cachedSecrets.webhookUrl || '';
+          const effectiveMerchantKey = mData.merchantKey || branding.merchantApiKey || cachedSecrets.merchantKey || '';
+          const effectiveWebhookSecret = (mData.webhookSecret && mData.webhookSecret !== 'whsec_test_secret_for_local_merchant_testing')
+            ? mData.webhookSecret
+            : (cachedSecrets.webhookSecret || mData.webhookSecret || '');
+
           setVal('settingMerchantId', mData.publishableKey || mData.merchantId || currentMerchantId);
-          setVal('settingMerchantApiKey', mData.merchantKey || branding.merchantApiKey || '');
+          setVal('settingMerchantApiKey', effectiveMerchantKey);
           setVal('settingBusinessName', mData.businessName);
-          setVal('settingWebhookUrl', mData.webhookUrl);
-          setVal('settingWebhookSecret', mData.webhookSecret);
-          renderMerchantCredentials(mData);
+          setVal('settingWebhookUrl', effectiveWebhookUrl);
+          setVal('settingWebhookSecret', effectiveWebhookSecret);
+          renderMerchantCredentials({ ...mData, apiKey: effectiveMerchantKey });
+
+          try {
+            localStorage.setItem('youpi_saved_merchant_secrets', JSON.stringify({
+              webhookUrl: effectiveWebhookUrl,
+              merchantKey: effectiveMerchantKey,
+              webhookSecret: effectiveWebhookSecret,
+              updatedAt: Date.now()
+            }));
+          } catch {}
+
+          // If backend didn't have the cached secrets (e.g. serverless cold start), auto-sync to backend silently
+          if ((cachedSecrets.webhookUrl && !mData.webhookUrl) || (cachedSecrets.webhookSecret && mData.webhookSecret === 'whsec_test_secret_for_local_merchant_testing')) {
+            fetch(`${API_BASE}/api/v1/admin/merchant-settings`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                merchantId: currentMerchantId,
+                webhookUrl: effectiveWebhookUrl,
+                webhookSecret: effectiveWebhookSecret,
+                branding: { merchantApiKey: effectiveMerchantKey }
+              })
+            }).catch(() => {});
+          }
 
           setVal('settingAppName', branding.appName || '{{APP_NAME}}' || 'YOUPI PG');
           setVal('settingLogoUrl', branding.logoUrl);
@@ -5399,6 +5433,22 @@
       const footerGuarantee = document.getElementById('settingFooterGuarantee')?.value.trim() || (currentMerchantBranding?.footerGuarantee || '');
       const counterInstructions = document.getElementById('settingCounterInstructions')?.value.trim() || '';
       const webhookUrl = document.getElementById('settingWebhookUrl')?.value.trim() || '';
+      const webhookSecret = document.getElementById('settingWebhookSecret')?.value.trim() || '';
+      const merchantApiKey = document.getElementById('settingMerchantApiKey')?.value.trim() || '';
+
+      if (webhookUrl || webhookSecret || merchantApiKey) {
+        try {
+          let prevSecrets = {};
+          try { prevSecrets = JSON.parse(localStorage.getItem('youpi_saved_merchant_secrets') || '{}'); } catch {}
+          localStorage.setItem('youpi_saved_merchant_secrets', JSON.stringify({
+            ...prevSecrets,
+            webhookUrl: webhookUrl || prevSecrets.webhookUrl || '',
+            webhookSecret: webhookSecret || prevSecrets.webhookSecret || '',
+            merchantKey: merchantApiKey || prevSecrets.merchantKey || '',
+            updatedAt: Date.now()
+          }));
+        } catch {}
+      }
 
       const supportEmails = (document.getElementById('settingSupportEmails')?.value || '').split(/[,\n]+/).map(s => s.trim()).filter(Boolean);
       const supportMobiles = (document.getElementById('settingSupportMobiles')?.value || '').split(/[,\n]+/).map(s => s.trim()).filter(Boolean);
@@ -5436,6 +5486,7 @@
             merchantId: currentMerchantId || '00000000-0000-0000-0000-000000000001',
             businessName,
             webhookUrl,
+            webhookSecret: webhookSecret || undefined,
             supportEmails,
             supportMobiles,
             privacyPolicyUrl: privacyPolicyUrl || null,
@@ -5450,6 +5501,7 @@
             domainTld: (document.getElementById('settingDomainTld')?.value || '').trim().toLowerCase(),
             customDomain: getCalculatedDomainUrl(),
             branding: {
+              merchantApiKey: merchantApiKey || undefined,
               appName,
               logoUrl: logoUrl || null,
               primaryColor,
@@ -5529,6 +5581,12 @@
         if (res.ok && data.merchantKey) {
           const el = document.getElementById('settingMerchantApiKey');
           if (el) el.value = data.merchantKey;
+          try {
+            let prevSecrets = {};
+            try { prevSecrets = JSON.parse(localStorage.getItem('youpi_saved_merchant_secrets') || '{}'); } catch {}
+            prevSecrets.merchantKey = data.merchantKey;
+            localStorage.setItem('youpi_saved_merchant_secrets', JSON.stringify(prevSecrets));
+          } catch {}
           showAdminToast('New Secret Merchant API Key generated!');
         } else {
           showAdminToast(data.error || 'Failed to rotate Merchant API Key', false);
@@ -5552,6 +5610,12 @@
         if (res.ok && data.webhookSecret) {
           const el = document.getElementById('settingWebhookSecret');
           if (el) el.value = data.webhookSecret;
+          try {
+            let prevSecrets = {};
+            try { prevSecrets = JSON.parse(localStorage.getItem('youpi_saved_merchant_secrets') || '{}'); } catch {}
+            prevSecrets.webhookSecret = data.webhookSecret;
+            localStorage.setItem('youpi_saved_merchant_secrets', JSON.stringify(prevSecrets));
+          } catch {}
           showAdminToast('New Webhook Secret generated!');
         } else {
           showAdminToast(data.error || 'Failed to rotate Webhook Secret', false);
