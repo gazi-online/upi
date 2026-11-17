@@ -274,7 +274,10 @@ export class CoinWalletStoreServer {
   createServer() {
     return http.createServer(async (req, res) => {
       const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-      const pathname = url.pathname;
+      const rawPathname = url.pathname;
+      const pathname = (rawPathname.startsWith('/store/') || rawPathname.startsWith('/store?'))
+        ? (rawPathname.slice(6) || '/')
+        : rawPathname;
       const method = req.method.toUpperCase();
 
       if (method === 'OPTIONS') {
