@@ -173,6 +173,7 @@ export function observerHealthEnforced() {
   if (process.env.YOUPI_ENFORCE_OBSERVER_HEALTH === 'false') return false;
   if (process.env.YOUPI_ENFORCE_OBSERVER_HEALTH === 'true') return true;
   if (process.env.NODE_ENV === 'test') return false;
+  if (process.env.NODE_ENV === 'development' || process.env.YOUPI_MODE === 'localhost') return false;
   if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) return false;
   return true;
 }
