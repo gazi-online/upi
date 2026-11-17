@@ -412,13 +412,19 @@
         setTimeout(() => {
           if (!this.isOpen || this.backdrop !== successBackdrop) return;
           this.close(() => {
-            if (this.options.successUrl) {
-              const delim = this.options.successUrl.includes('?') ? '&' : '?';
-              window.location.href = `${this.options.successUrl}${delim}order_id=${encodeURIComponent(result.order_id)}&amount=${encodeURIComponent(result.amount_received)}&utr=${encodeURIComponent(result.utr)}`;
+            const redirectUrl = this.options.successUrl || payload.returnUrl || this.options.returnUrl;
+            if (redirectUrl && this._isSafeRedirect(redirectUrl)) {
+              let dest = redirectUrl;
+              if (!dest.includes('order_id=') && !dest.includes('orderId=') && result.order_id) {
+                const delim = dest.includes('?') ? '&' : '?';
+                dest = `${dest}${delim}order_id=${encodeURIComponent(result.order_id)}&amount=${encodeURIComponent(result.amount_received)}&utr=${encodeURIComponent(result.utr)}`;
+              }
+              window.location.href = dest;
             }
           });
         }, 1500);
       } else if (event === 'youpi.payment_observed' || event === 'youpi.payment_reconciled' || event === 'youpi.payment_manual_review') {
+        const observedBackdrop = this.backdrop;
         const payload = e.data.data || {};
         const status = event === 'youpi.payment_reconciled'
           ? 'RECONCILED'
@@ -441,6 +447,30 @@
         YoupiCheckout._emitEvent('youpi:payment:result', result);
         if (typeof this.options.handler === 'function') this.options.handler(result);
         if (status === 'RECONCILED' && typeof this.options.onSuccess === 'function') this.options.onSuccess(result);
+
+        if (status === 'OBSERVED_SUCCESS' || status === 'RECONCILED') {
+          setTimeout(() => {
+            if (!this.isOpen || this.backdrop !== observedBackdrop) return;
+            this.close(() => {
+              const redirectUrl = this.options.successUrl || payload.returnUrl || this.options.returnUrl;
+              if (redirectUrl && this._isSafeRedirect(redirectUrl)) {
+                let dest = redirectUrl;
+                if (!dest.includes('order_id=') && !dest.includes('orderId=') && result.order_id) {
+                  const delim = dest.includes('?') ? '&' : '?';
+                  dest = `${dest}${delim}order_id=${encodeURIComponent(result.order_id)}&amount=${encodeURIComponent(result.amount_received)}&utr=${encodeURIComponent(result.utr)}`;
+                }
+                window.location.href = dest;
+              }
+            });
+          }, 2000);
+        }
+      } else if (event === 'youpi.payment_redirect') {
+        const redirectUrl = e.data.url;
+        if (redirectUrl && this._isSafeRedirect(redirectUrl)) {
+          this.close(() => {
+            window.location.href = redirectUrl;
+          });
+        }
       } else if (event === 'youpi.payment_failed') {
         const payload = e.data.data || e.data || {};
         const result = {

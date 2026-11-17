@@ -488,6 +488,8 @@ export function registerCheckoutRoutes(server, ctx) {
         id: session.id,
         paymentId: session.id,
         orderId: session.orderId,
+        merchantName: merchant?.businessName || 'Merchant',
+        payeeName: merchant?.businessName || 'Merchant',
         amount: toRupeesString(session.amountPaise),
         amountPaise: session.amountPaise.toString(),
         currency: session.currency,

@@ -255,7 +255,7 @@
 
 <script>
   const urlParams = new URLSearchParams(window.location.search);
-  const orderIdParam = urlParams.get('orderId');
+  const orderIdParam = urlParams.get('orderId') || urlParams.get('order_id');
 
   function openQuickPackModal() {
     document.getElementById('quickModal').classList.add('active');

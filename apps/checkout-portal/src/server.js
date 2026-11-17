@@ -244,6 +244,7 @@ export class CheckoutServer {
     const appName = state?.branding?.appName || (process.env.DEFAULT_APP_NAME || '').trim() || BRANDING_CONFIG.appName || 'Mitto Pay';
     const primaryColor = state?.branding?.primaryColor || (process.env.DEFAULT_PRIMARY_COLOR || '').trim() || BRANDING_CONFIG.primaryColor || '#0b63e5';
     const merchantName = state?.merchantName || BRANDING_CONFIG.businessName || 'Merchant Checkout';
+    const merchantAvatarLetter = (merchantName || 'M').charAt(0).toUpperCase();
     const orderId = state?.orderId || '';
     const logoUrl = state?.branding?.logoUrl || (process.env.DEFAULT_LOGO_URL || '').trim() || BRANDING_CONFIG.logoUrl || '';
     const sidebarNotice = state?.branding?.sidebarNotice || BRANDING_CONFIG.sidebarNotice || 'Fast & Secure 256-Bit Encrypted Payments';
@@ -294,6 +295,7 @@ export class CheckoutServer {
       FOOTER_GUARANTEE: footerGuarantee,
       TRUST_BADGE_TEXT: trustBadgeText,
       MERCHANT_NAME: merchantName,
+      MERCHANT_AVATAR_LETTER: merchantAvatarLetter,
       ORDER_ID: orderId,
       AMOUNT: state?.amount || '0.00',
       VPA: vpa,

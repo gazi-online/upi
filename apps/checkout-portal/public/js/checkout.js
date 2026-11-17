@@ -1591,9 +1591,22 @@
 
     function renderState(data) {
       state = data;
-      const b = data.branding || {};
+      if (!data.merchantName && state && state.merchantName) {
+        data.merchantName = state.merchantName;
+      }
+      if (!data.payeeName && state && state.payeeName) {
+        data.payeeName = state.payeeName;
+      }
+      const b = data.branding || (state && state.branding) || {};
       const appName = (b.appName && b.appName !== 'YOUPI PG') ? b.appName : 'Mitto Pay';
-      const merchantName = (data.merchantName && data.merchantName !== 'YOUPI Demo Store' && data.merchantName !== 'Merchant Checkout') ? data.merchantName : 'V-Visa Business';
+      const existingNameEl = document.getElementById('headerMerchantName');
+      const existingPcMerchant = document.getElementById('pcMerchantName');
+      const fallbackMerchantName = (existingPcMerchant && existingPcMerchant.textContent && !existingPcMerchant.textContent.includes('{{') && existingPcMerchant.textContent !== 'Merchant Name')
+        ? existingPcMerchant.textContent
+        : ((existingNameEl && existingNameEl.textContent && !existingNameEl.textContent.includes('{{') && existingNameEl.textContent !== 'Merchant Name')
+          ? existingNameEl.textContent
+          : 'V-Visa Business');
+      const merchantName = (data.merchantName && data.merchantName !== 'YOUPI Demo Store' && data.merchantName !== 'Merchant Checkout') ? data.merchantName : fallbackMerchantName;
 
       // 1. Dynamic Title
       document.title = `${merchantName} · ${appName} Checkout`;
@@ -1602,11 +1615,11 @@
       applyDynamicTheme(b);
 
       // 3. Merchant Name & Avatar
-      if (data.merchantName) {
+      if (merchantName) {
         const nameEl = document.getElementById('headerMerchantName');
-        if (nameEl) nameEl.textContent = data.merchantName;
+        if (nameEl) nameEl.textContent = merchantName;
         const letterEl = document.getElementById('merchantAvatarLetter');
-        if (letterEl) letterEl.textContent = data.merchantName.charAt(0).toUpperCase();
+        if (letterEl) letterEl.textContent = merchantName.charAt(0).toUpperCase();
       }
 
       // 4. Verified Trust Badge
@@ -1645,7 +1658,7 @@
 
       // Update PC Sidebar Details & Whitelabeling
       const pcMerchant = document.getElementById('pcMerchantName');
-      if (pcMerchant) pcMerchant.textContent = data.merchantName || 'Merchant Name';
+      if (pcMerchant) pcMerchant.textContent = merchantName;
       const pcPrice = document.getElementById('pcPriceSummaryAmount');
       if (pcPrice && data.amount) pcPrice.textContent = `₹${data.amount}`;
       const pcAppBrand = document.getElementById('pcAppNameBrand');
@@ -1664,7 +1677,7 @@
         if (pcLogoImg) pcLogoImg.style.display = 'none';
         if (pcLetterSpan) {
           pcLetterSpan.style.display = 'block';
-          pcLetterSpan.textContent = (data.merchantName || 'M').charAt(0).toUpperCase();
+          pcLetterSpan.textContent = (merchantName || 'M').charAt(0).toUpperCase();
         }
       }
 
@@ -2008,14 +2021,33 @@
               if (btnReturn) {
                 btnReturn.hidden = false;
                 btnReturn.href = safeReturn;
+                btnReturn.target = '_top';
+                btnReturn.onclick = function(e) {
+                  e.preventDefault();
+                  postToMerchant({ event: 'youpi.payment_redirect', url: safeReturn, data: data });
+                  try {
+                    if (window.top && window.top !== window) {
+                      window.top.location.href = safeReturn;
+                      return;
+                    }
+                  } catch (_) {}
+                  window.location.href = safeReturn;
+                };
                 btnReturn.textContent = 'Return to Store (Redirecting in 2s...)';
               }
               if (descEl && !descEl.textContent.includes('Redirecting')) {
                 descEl.textContent += ' Redirecting to merchant store...';
               }
-              if (window.parent === window) {
-                setTimeout(() => { window.location.href = safeReturn; }, 2000);
-              }
+              setTimeout(() => {
+                postToMerchant({ event: 'youpi.payment_redirect', url: safeReturn, data: data });
+                try {
+                  if (window.top && window.top !== window) {
+                    window.top.location.href = safeReturn;
+                    return;
+                  }
+                } catch (_) {}
+                window.location.href = safeReturn;
+              }, 2000);
             } else if (btnReturn) {
               btnReturn.hidden = true;
             }
