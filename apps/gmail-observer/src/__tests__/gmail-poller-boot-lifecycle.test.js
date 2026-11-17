@@ -13,13 +13,31 @@ describe('Gmail Poller Boot Lifecycle & Control Suite', () => {
   let apiInstance;
   let testDb;
   let testStoragePath;
+  const originalEnv = {
+    GMAIL_CLIENT_ID: process.env.GMAIL_CLIENT_ID,
+    GMAIL_CLIENT_SECRET: process.env.GMAIL_CLIENT_SECRET,
+    GMAIL_REFRESH_TOKEN: process.env.GMAIL_REFRESH_TOKEN,
+    GMAIL_CONNECTED_EMAIL: process.env.GMAIL_CONNECTED_EMAIL
+  };
 
   before(async () => {
+    delete process.env.GMAIL_CLIENT_ID;
+    delete process.env.GMAIL_CLIENT_SECRET;
+    delete process.env.GMAIL_REFRESH_TOKEN;
+    delete process.env.GMAIL_CONNECTED_EMAIL;
+
     testDb = new Database({ inMemory: true });
     apiInstance = await startPaymentApi(6194, testDb);
   });
 
   after(async () => {
+    for (const [k, v] of Object.entries(originalEnv)) {
+      if (v !== undefined) {
+        process.env[k] = v;
+      } else {
+        delete process.env[k];
+      }
+    }
     await apiInstance.close();
     testDb.close();
   });

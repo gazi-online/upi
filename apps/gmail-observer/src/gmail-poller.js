@@ -36,11 +36,16 @@ function extractBodyFromGmailPayload(payload) {
           const text = Buffer.from(part.body.data, 'base64url').toString('utf8');
           if (mimeType === 'text/html') {
             return text
+              .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+              .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
               .replace(/&#8377;/g, '₹')
               .replace(/&rupee;/gi, '₹')
               .replace(/&nbsp;/g, ' ')
               .replace(/&amp;/g, '&')
-              .replace(/<[^>]+>/g, ' ');
+              .replace(/<[^>]+>/g, ' ')
+              .replace(/[\r\n\t]+/g, ' ')
+              .replace(/\s{2,}/g, ' ')
+              .trim();
           }
           return text;
         } catch {}
@@ -53,7 +58,18 @@ function extractBodyFromGmailPayload(payload) {
   for (const part of [payload, ...directParts]) {
     if (part.body?.data) {
       try {
-        return Buffer.from(part.body.data, 'base64url').toString('utf8');
+        const raw = Buffer.from(part.body.data, 'base64url').toString('utf8');
+        return raw
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
+          .replace(/&#8377;/g, '₹')
+          .replace(/&rupee;/gi, '₹')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/[\r\n\t]+/g, ' ')
+          .replace(/\s{2,}/g, ' ')
+          .trim();
       } catch {}
     }
   }
@@ -340,7 +356,8 @@ export class GmailPoller {
       return { accepted: false, rejected: true, reason: 'MALFORMED_OR_NON_CREDIT' };
     }
 
-    const rawContent = `${email.subject || ''}\n${parsed?.rawSnippet || email.body || ''}`.trim().slice(0, 4000);
+    const cleanBody = (email.body || '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ');
+    const rawContent = `${email.subject || ''}\n${cleanBody}`.trim().slice(0, 4000);
 
     try {
       const result = await this.observerClient.submitObservation({
@@ -421,7 +438,7 @@ export class GmailPoller {
       if (!accessToken) return;
 
       // Strict bank & UPI transaction alert filter (read-only search)
-      const query = encodeURIComponent('from:(bank.in OR hdfcbank.net OR hdfcbank.com OR icicibank.com OR sbi.co.in OR axisbank.com OR kotak.com OR paytm.com OR phonepe.com OR google.com OR bharatpe.com) OR (credit OR credited OR received OR upi OR deposit OR alert OR update)');
+      const query = encodeURIComponent('from:(bank.in OR hdfcbank.net OR hdfcbank.com OR icicibank.com OR sbi.co.in OR axisbank.com OR kotak.com OR paytm.com OR phonepe.com OR google.com OR bharatpe.com) OR (credit OR credited OR received OR upi OR deposit OR alert OR update OR paid OR payment)');
 
       let pageToken = this.nextCatchUpPageToken || null;
       let pagesFetched = 0;

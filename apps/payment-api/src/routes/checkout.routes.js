@@ -413,10 +413,27 @@ export async function checkUpiServerHealth(ctx, enabledMethods = [], sellingMode
 export function registerCheckoutRoutes(server, ctx) {
   // GET /api/v1/checkout/:id/state
   server.get('/api/v1/checkout/:id/state', async (req, res, params) => {
-    const session = ctx.sessionRepo.findById(params.id);
+    let session = ctx.sessionRepo.findById(params.id);
     if (!session) {
       HttpServer.json(res, 404, { error: `Checkout session not found: ${params.id}` });
       return;
+    }
+
+    // In serverless environments (e.g. Vercel), background intervals freeze between requests.
+    // Proactively sweep observer notifications during active checkout polling (respecting cooldown).
+    if (session.status === PaymentStatus.ACTIVE || session.status === PaymentStatus.PROCESSING) {
+      if (ctx.observerPollerService && typeof ctx.observerPollerService.sweepGmailObserver === 'function') {
+        try {
+          await Promise.race([
+            ctx.observerPollerService.sweepGmailObserver(),
+            new Promise(resolve => setTimeout(resolve, 2500))
+          ]);
+          const refreshed = ctx.sessionRepo.findById(params.id);
+          if (refreshed) {
+            session = refreshed;
+          }
+        } catch {}
+      }
     }
 
     // Server-side Ban & Fraud Enforcement
@@ -1146,6 +1163,11 @@ export function registerCheckoutRoutes(server, ctx) {
     }
 
     const updated = ctx.timingEngine.handlePaymentDone(params.id);
+
+    // In serverless environments, kick off an immediate sweep upon customer payment confirmation
+    if (ctx.observerPollerService && typeof ctx.observerPollerService.sweepGmailObserver === 'function') {
+      ctx.observerPollerService.sweepGmailObserver().catch(() => {});
+    }
 
     // Broadcast SSE update
     server.broadcastSse(params.id, 'status_change', {

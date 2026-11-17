@@ -286,7 +286,7 @@ export class ObserverPollerService {
       await fetch(new URL('api/sweep', `${this.smsBaseUrl.replace(/\/+$/, '')}/`), {
         method: 'POST',
         headers,
-        signal: AbortSignal.timeout(1200)
+        signal: AbortSignal.timeout(8000)
       });
       return true;
     } catch {
@@ -317,7 +317,7 @@ export class ObserverPollerService {
       await fetch(new URL('api/sweep', `${this.gmailBaseUrl.replace(/\/+$/, '')}/`), {
         method: 'POST',
         headers,
-        signal: AbortSignal.timeout(1200)
+        signal: AbortSignal.timeout(8000)
       });
       return true;
     } catch {
