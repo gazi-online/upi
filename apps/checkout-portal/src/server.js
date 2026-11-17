@@ -580,8 +580,15 @@ export class CheckoutServer {
         return;
       }
 
-      // Checkout Page: GET /checkout/:id
-      const checkoutMatch = pathname.match(/^\/checkout\/([^/]+)$/);
+      // Direct /checkout or /checkout/ navigation without payment ID: redirect to store
+      if (pathname === '/checkout' || pathname === '/checkout/') {
+        res.writeHead(302, { 'Location': '/store' });
+        res.end();
+        return;
+      }
+
+      // Checkout Page: GET /checkout/:id (supports optional trailing slash)
+      const checkoutMatch = pathname.match(/^\/checkout\/([^/]+)\/?$/);
       if (checkoutMatch) {
         const paymentId = checkoutMatch[1];
         const state = await this.fetchPaymentState(paymentId);
