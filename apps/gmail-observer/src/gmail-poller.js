@@ -48,7 +48,7 @@ function extractBodyFromGmailPayload(payload) {
               .trim();
           }
           return text;
-        } catch {}
+        } catch { }
       }
     }
   }
@@ -70,7 +70,7 @@ function extractBodyFromGmailPayload(payload) {
           .replace(/[\r\n\t]+/g, ' ')
           .replace(/\s{2,}/g, ' ')
           .trim();
-      } catch {}
+      } catch { }
     }
   }
   return '';
@@ -160,7 +160,7 @@ export class GmailPoller {
     this.backoffDelayMs = Math.min(this.backoffDelayMs * 2, 60000);
 
     this.bootRetryTimer = setTimeout(() => {
-      this.startBootLifecycle().catch(() => {});
+      this.startBootLifecycle().catch(() => { });
     }, delay);
     if (typeof this.bootRetryTimer.unref === 'function') {
       this.bootRetryTimer.unref();
@@ -227,7 +227,7 @@ export class GmailPoller {
           this.processedMessageIds = new Set(list);
         }
       }
-    } catch {}
+    } catch { }
   }
 
   saveProcessedIdsToDisk() {
@@ -237,7 +237,7 @@ export class GmailPoller {
         fs.mkdirSync(dir, { recursive: true });
       }
       fs.writeFileSync(this.storagePath, JSON.stringify(Array.from(this.processedMessageIds)), 'utf8');
-    } catch {}
+    } catch { }
   }
 
   setCredentials(creds) {
@@ -258,7 +258,7 @@ export class GmailPoller {
           console.log(`[Gmail Observer] Auto-bound active receiving account: ${this.receivingAccountId}`);
         }
       }
-    } catch {}
+    } catch { }
   }
 
   async fetchCredentialsFromPaymentApi() {
@@ -280,7 +280,7 @@ export class GmailPoller {
           return;
         }
       }
-    } catch {}
+    } catch { }
 
     const envClientId = (process.env.GMAIL_CLIENT_ID || '').trim();
     const envClientSecret = (process.env.GMAIL_CLIENT_SECRET || '').trim();
@@ -366,7 +366,7 @@ export class GmailPoller {
     let parsed = null;
     try {
       parsed = BankEmailParser.parse(email);
-    } catch {}
+    } catch { }
 
     // Malformed or non-credit handling
     if (!parsed || !parsed.amountPaise) {
@@ -424,10 +424,10 @@ export class GmailPoller {
     console.log(`[Gmail Observer] Poller started (interval: ${this.pollIntervalMs}ms)`);
 
     // Run first poll cycle immediately
-    this.pollCycle().catch(() => {});
+    this.pollCycle().catch(() => { });
 
     this.timer = setInterval(() => {
-      this.pollCycle().catch(() => {});
+      this.pollCycle().catch(() => { });
     }, this.pollIntervalMs);
     if (this.timer.unref) this.timer.unref();
   }

@@ -64,6 +64,8 @@ describe('ObserverPollerService Hardening & Concurrency Protection', () => {
       obsRepo,
       attributionEngine,
       eventEmitter,
+      smsBaseUrl: 'http://127.0.0.1:59998',
+      gmailBaseUrl: 'http://127.0.0.1:59999',
       pollIntervalMs: 1000,
       minSweepCooldownMs: 1500, // 1.5s cooldown
       autoStart: false

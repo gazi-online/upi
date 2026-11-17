@@ -45,9 +45,10 @@ export class ObserverPollerService {
     this.minSweepCooldownMs = Number(options.minSweepCooldownMs || process.env.OBSERVER_SWEEP_COOLDOWN_MS || 2000);
     this.smsPort = Number(options.smsPort || process.env.SMS_OBSERVER_PORT || 6002);
     this.gmailPort = Number(options.gmailPort || process.env.GMAIL_OBSERVER_PORT || 6003);
-    const publicOrigin = process.env.PUBLIC_APP_URL
+    const isTest = process.env.NODE_ENV === 'test';
+    const publicOrigin = !isTest ? (process.env.PUBLIC_APP_URL
       || process.env.CHECKOUT_PUBLIC_URL
-      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
+      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)) : null;
     this.smsBaseUrl = options.smsBaseUrl
       || process.env.SMS_OBSERVER_URL
       || (publicOrigin ? `${publicOrigin.replace(/\/+$/, '')}/internal/sms` : `http://localhost:${this.smsPort}`);
