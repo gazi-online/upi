@@ -454,7 +454,7 @@ export class WhatsAppBerryService extends EventEmitter {
       console.warn(`[WhatsAppBerryService] Connection closed: reason=${reason}, statusCode=${statusCode}`);
       // NEVER treat transient socket drops or 401 connection timeouts as manual logouts!
       // Only an explicit manual disconnect action by the user should wipe credentials.
-      const isExplicitManualLogout = reason === 'manual_logout';
+      const isExplicitManualLogout = reason === 'manual_logout' || !this.shouldKeepPairingAlive;
 
       if (isExplicitManualLogout) {
         this.status = 'DISCONNECTED';
@@ -481,23 +481,22 @@ export class WhatsAppBerryService extends EventEmitter {
           return null;
         })();
 
-        if (savedPhone) {
+        if (savedPhone && this.shouldKeepPairingAlive) {
           this.phoneNumber = savedPhone;
           this.status = 'CONNECTED';
           console.log(`[WhatsAppBerryService] Transient connection cycle for linked phone ${this.phoneNumber}. Maintaining CONNECTED status.`);
-          if (this.shouldKeepPairingAlive !== false) {
-            clearTimeout(this.reconnectTimer);
-            this.reconnectTimer = setTimeout(() => {
-              console.log(`[WhatsAppBerryService] Auto-reconnecting transient WhatsApp session (${this.phoneNumber})...`);
-              this.initialize().catch(err => {
-                console.warn(`[WhatsAppBerryService] Auto-reconnect retry notice: ${err.message}`);
-              });
-            }, 3000);
-          }
+          clearTimeout(this.reconnectTimer);
+          this.reconnectTimer = setTimeout(() => {
+            console.log(`[WhatsAppBerryService] Auto-reconnecting transient WhatsApp session (${this.phoneNumber})...`);
+            this.initialize().catch(err => {
+              console.warn(`[WhatsAppBerryService] Auto-reconnect retry notice: ${err.message}`);
+            });
+          }, 3000);
           return;
         }
 
         this.status = 'DISCONNECTED';
+        this.phoneNumber = null;
         this.emit('disconnected', { reason, statusCode });
         this.emit('status', this.status);
       }
@@ -556,6 +555,11 @@ export class WhatsAppBerryService extends EventEmitter {
     clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
     this.isInitializing = false;
+    this.status = 'DISCONNECTED';
+    this.phoneNumber = null;
+    this.qrCode = null;
+    this.pairingCode = null;
+    this.pairingPhone = null;
 
     if (this.client) {
       try {
@@ -571,12 +575,6 @@ export class WhatsAppBerryService extends EventEmitter {
 
     if (options.cleanSession !== false) {
       this.cleanSessionFiles();
-    } else {
-      this.status = 'DISCONNECTED';
-      this.phoneNumber = null;
-      this.qrCode = null;
-      this.pairingCode = null;
-      this.pairingPhone = null;
     }
 
     this.emit('disconnected', { reason: 'manual_logout' });

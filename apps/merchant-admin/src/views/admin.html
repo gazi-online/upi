@@ -6418,18 +6418,10 @@
     let activePairingQr = null;
     let isPairingActive = false;
 
-    // Immediate restoration of saved WhatsApp session from localStorage on page load
-    (function initSavedWhatsAppSession() {
-      try {
-        const raw = localStorage.getItem('youpi_saved_whatsapp_session');
-        if (raw) {
-          const saved = JSON.parse(raw);
-          if (saved.status === 'CONNECTED' && saved.phoneNumber) {
-            updateWhatsAppUI(saved, false);
-          }
-        }
-      } catch {}
-    })();
+    // Aggressively wipe any legacy ghost WhatsApp session data from browser localStorage on load
+    try {
+      localStorage.removeItem('youpi_saved_whatsapp_session');
+    } catch {}
 
     function updateWhatsAppUI(data, isManual = false) {
       if (!data) return;
@@ -6463,6 +6455,8 @@
 
       if (data.status === 'DISCONNECTED') {
         waConsecutiveDisconnected = 99;
+        activePairingQr = null;
+        isPairingActive = false;
         try { localStorage.removeItem('youpi_saved_whatsapp_session'); } catch {}
       }
 
@@ -6671,6 +6665,8 @@
       isPairingActive = false;
       waConsecutiveDisconnected = 99;
       try { localStorage.removeItem('youpi_saved_whatsapp_session'); } catch {}
+      // Immediately reset UI to DISCONNECTED without waiting for network roundtrip
+      updateWhatsAppUI({ status: 'DISCONNECTED', phoneNumber: null }, false);
       const btn = document.getElementById('btnWaDisconnect');
       if (btn) btn.disabled = true;
       try {
@@ -6679,7 +6675,7 @@
         updateWhatsAppUI({ status: 'DISCONNECTED', phoneNumber: null }, true);
         showAdminToast('WhatsApp session disconnected.');
       } catch (e) {
-        showAdminToast('Failed to disconnect WhatsApp session');
+        showAdminToast('Failed to disconnect WhatsApp session on server');
       } finally {
         if (btn) btn.disabled = false;
       }
