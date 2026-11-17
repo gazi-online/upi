@@ -116,6 +116,8 @@ export class CoinWalletStoreServer {
     // attacker-controllable and would otherwise allow redirecting paying customers elsewhere.
     let pubUrl = options.publicBaseUrl
       || process.env.COIN_STORE_PUBLIC_URL
+      || process.env.PUBLIC_APP_URL
+      || process.env.CHECKOUT_PUBLIC_URL
       || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
       || `http://localhost:${process.env.STORE_PORT || 5000}`;
     while (pubUrl.endsWith('/')) {

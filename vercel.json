@@ -89,6 +89,8 @@
     { "source": "/help", "destination": { "service": "payment-help" } },
     { "source": "/store/(.*)", "destination": { "service": "coin-wallet-store" } },
     { "source": "/store", "destination": { "service": "coin-wallet-store" } },
+    { "source": "/wallet(.*)", "destination": { "service": "coin-wallet-store" } },
+    { "source": "/order-(.*)", "destination": { "service": "coin-wallet-store" } },
     { "source": "/assets/(.*)", "destination": { "service": "coin-wallet-store" } },
     { "source": "/css/store.css", "destination": { "service": "coin-wallet-store" } },
     { "source": "/js/store.js", "destination": { "service": "coin-wallet-store" } },

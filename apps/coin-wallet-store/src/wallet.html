@@ -265,7 +265,7 @@
     document.getElementById('quickModal').classList.remove('active');
   }
 
-  const apiBase = window.location.pathname.startsWith('/store') ? '/store/api' : '/api';
+  const apiBase = window.location.pathname.startsWith('/store') ? '/store/api' : (window.location.port === '5000' ? '/api' : '/store/api');
 
   async function loadWallet() {
     try {
