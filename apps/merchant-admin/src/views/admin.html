@@ -6446,10 +6446,6 @@
       const codeVal = document.getElementById('waPairingCodeVal');
 
       const isCurrentlyConnected = badge && badge.innerText === 'CONNECTED';
-      const savedSessionRaw = (function() {
-        try { return JSON.parse(localStorage.getItem('youpi_saved_whatsapp_session') || '{}'); } catch { return {}; }
-      })();
-      const hasSavedConnectedSession = savedSessionRaw.status === 'CONNECTED' && Boolean(savedSessionRaw.phoneNumber);
 
       // Capture and lock active pairing QR code to eliminate flickering/fade-out during background polls
       if (data.qrCode) {
@@ -6465,19 +6461,9 @@
         }
       }
 
-      // Anti-flapping debounce:
-      // If currently showing CONNECTED (or saved in localStorage as CONNECTED) and background poll returned DISCONNECTED without manual user action,
-      // require sustained DISCONNECTED polls before wiping the connected display.
       if (data.status === 'DISCONNECTED') {
-        if (isManual || isUserInitiatedDisconnect) {
-          waConsecutiveDisconnected = 99;
-          try { localStorage.removeItem('youpi_saved_whatsapp_session'); } catch {}
-        } else if (isCurrentlyConnected || hasSavedConnectedSession) {
-          waConsecutiveDisconnected++;
-          if (waConsecutiveDisconnected < 10) {
-            return;
-          }
-        }
+        waConsecutiveDisconnected = 99;
+        try { localStorage.removeItem('youpi_saved_whatsapp_session'); } catch {}
       }
 
       if (data.status === 'CONNECTED') {
@@ -6485,13 +6471,6 @@
         isUserInitiatedDisconnect = false;
         activePairingQr = null;
         isPairingActive = false;
-        try {
-          localStorage.setItem('youpi_saved_whatsapp_session', JSON.stringify({
-            status: 'CONNECTED',
-            phoneNumber: data.phoneNumber || savedSessionRaw.phoneNumber || 'Linked Device',
-            updatedAt: Date.now()
-          }));
-        } catch {}
       }
 
       if (data.pairingCode && codeDisplay && codeVal) {
@@ -6598,21 +6577,8 @@
 
     async function fetchWhatsAppStatus(isManual = false) {
       try {
-        let cachedPhone = null;
-        try {
-          const raw = localStorage.getItem('youpi_saved_whatsapp_session');
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            if (parsed.status === 'CONNECTED' && parsed.phoneNumber) cachedPhone = parsed.phoneNumber;
-          }
-        } catch {}
-
-        const merchantParam = (typeof currentMerchantId !== 'undefined' && currentMerchantId) ? `merchantId=${encodeURIComponent(currentMerchantId)}` : '';
-        const phoneParam = cachedPhone ? `cachedPhone=${encodeURIComponent(cachedPhone)}` : '';
-        const query = [merchantParam, phoneParam].filter(Boolean).join('&');
-        const queryStr = query ? `?${query}` : '';
-
-        const res = await fetch(`${API_BASE}/api/v1/admin/whatsapp/status${queryStr}`);
+        const merchantParam = (typeof currentMerchantId !== 'undefined' && currentMerchantId) ? `?merchantId=${encodeURIComponent(currentMerchantId)}` : '';
+        const res = await fetch(`${API_BASE}/api/v1/admin/whatsapp/status${merchantParam}`);
         if (!res.ok) return;
         const data = await res.json();
         updateWhatsAppUI(data, isManual);

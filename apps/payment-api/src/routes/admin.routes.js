@@ -1460,62 +1460,14 @@ export function registerAdminRoutes(server, ctx) {
     const merchant = resolveMerchant(req, req.query?.merchantId);
     let savedConfig = merchant?.branding?.whatsappConfig;
 
-    // Cross-merchant fallback: search if any merchant in the DB has an active whatsappConfig
-    if (!savedConfig && ctx.merchantRepo) {
-      for (const m of ctx.merchantRepo.findAll()) {
-        if (m.branding?.whatsappConfig?.status === 'CONNECTED') {
-          savedConfig = m.branding.whatsappConfig;
-          break;
-        }
-      }
-    }
-
-    // Restore from cachedPhone query parameter if not explicitly disconnected
-    const isExplicitlyDisconnected = savedConfig?.status === 'DISCONNECTED';
-    if (!savedConfig && req.query?.cachedPhone && !isExplicitlyDisconnected) {
-      savedConfig = {
-        status: 'CONNECTED',
-        phoneNumber: req.query.cachedPhone,
-        updatedAt: new Date().toISOString()
-      };
-      if (merchant) {
-        const branding = typeof merchant.branding === 'object' && merchant.branding ? { ...merchant.branding } : {};
-        branding.whatsappConfig = savedConfig;
-        ctx.merchantRepo.update(merchant.id, { branding });
-      }
-    }
-
-    if (isExplicitlyDisconnected) {
-      if (berry) {
-        berry.status = 'DISCONNECTED';
-        berry.phoneNumber = null;
-        berry.qrCode = null;
-        berry.pairingCode = null;
-        berry.pairingPhone = null;
-      }
+    if (!berry) {
       HttpServer.json(res, 200, {
         success: true,
         status: 'DISCONNECTED',
         phoneNumber: null,
         platform: 'BerryProtocol v0.1.10',
-        sessionId: berry?.sessionId || 'youpi_berry_session',
-        isConnected: false,
         qrCode: null,
-        pairingCode: null,
-        pairingPhone: null
-      });
-      return;
-    }
-
-    if (!berry) {
-      const isSavedConnected = savedConfig?.status === 'CONNECTED' && savedConfig?.phoneNumber;
-      HttpServer.json(res, 200, {
-        success: true,
-        status: isSavedConnected ? 'CONNECTED' : 'DISCONNECTED',
-        phoneNumber: isSavedConnected ? savedConfig.phoneNumber : null,
-        platform: 'BerryProtocol v0.1.10',
-        qrCode: null,
-        isConnected: Boolean(isSavedConnected)
+        isConnected: false
       });
       return;
     }
@@ -1524,14 +1476,18 @@ export function registerAdminRoutes(server, ctx) {
     let effectiveStatus = info.status;
     let effectivePhone = info.phoneNumber;
 
-    // Cross-container serverless synchronization:
-    // If this container is currently DISCONNECTED, but database branding confirms an active linked WhatsApp phone
-    const savedPhone = (savedConfig?.status === 'CONNECTED' && savedConfig?.phoneNumber) ? savedConfig.phoneNumber : null;
-    if (effectiveStatus === 'DISCONNECTED' && savedPhone) {
-      effectiveStatus = 'CONNECTED';
-      effectivePhone = savedPhone;
-      berry.status = 'CONNECTED';
-      berry.phoneNumber = savedPhone;
+    // Real device invariant: WhatsApp is ONLY connected if berry service has an active authenticated client
+    // or valid credentials on disk. Stale branding records in DB without credentials are auto-cleared.
+    if (effectiveStatus === 'DISCONNECTED') {
+      if (savedConfig?.status === 'CONNECTED') {
+        try {
+          if (merchant && ctx.merchantRepo) {
+            const branding = { ...(merchant.branding || {}) };
+            branding.whatsappConfig = { status: 'DISCONNECTED', phoneNumber: null, updatedAt: new Date().toISOString() };
+            ctx.merchantRepo.update(merchant.id, { branding });
+          }
+        } catch {}
+      }
     } else if (effectiveStatus === 'CONNECTED' && effectivePhone) {
       try {
         const config = {
@@ -1539,10 +1495,10 @@ export function registerAdminRoutes(server, ctx) {
           phoneNumber: effectivePhone,
           updatedAt: new Date().toISOString()
         };
-        for (const m of ctx.merchantRepo.findAll()) {
-          const branding = typeof m.branding === 'object' && m.branding ? { ...m.branding } : {};
+        if (merchant && ctx.merchantRepo) {
+          const branding = { ...(merchant.branding || {}) };
           branding.whatsappConfig = config;
-          ctx.merchantRepo.update(m.id, { branding });
+          ctx.merchantRepo.update(merchant.id, { branding });
         }
       } catch {}
     }
