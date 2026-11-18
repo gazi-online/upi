@@ -2,9 +2,8 @@ import http from 'node:http';
 import https from 'node:https';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { runMigrations } from '../packages/db/src/migrate.js';
-import { startControlCenter } from '../apps/control-center/src/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,6 +18,11 @@ process.env.YOUPI_ALLOW_LOCALHOST_MODE = 'true';
 process.env.NODE_ENV = process.env.NODE_ENV || 'production';
 process.env.USE_SQLITE_FALLBACK = 'true';
 
+// Normalize ENCRYPTION_MASTER_KEY if set by Render auto-generator to ensure 32-byte (64 hex chars) length
+if (process.env.ENCRYPTION_MASTER_KEY && !/^[0-9a-fA-F]{64}$/.test(process.env.ENCRYPTION_MASTER_KEY.trim())) {
+  process.env.ENCRYPTION_MASTER_KEY = crypto.createHash('sha256').update(process.env.ENCRYPTION_MASTER_KEY.trim()).digest('hex');
+}
+
 // Try loading local .env if present
 try {
   const rootEnv = path.resolve(rootDir, '.env');
@@ -26,6 +30,14 @@ try {
     process.loadEnvFile(rootEnv);
   }
 } catch {}
+
+// Re-check after .env load
+if (process.env.ENCRYPTION_MASTER_KEY && !/^[0-9a-fA-F]{64}$/.test(process.env.ENCRYPTION_MASTER_KEY.trim())) {
+  process.env.ENCRYPTION_MASTER_KEY = crypto.createHash('sha256').update(process.env.ENCRYPTION_MASTER_KEY.trim()).digest('hex');
+}
+
+import { runMigrations } from '../packages/db/src/migrate.js';
+import { startControlCenter } from '../apps/control-center/src/index.js';
 
 console.log('====================================================');
 console.log(`🚀 Starting YOUPI PG V2 — Render Cloud Gateway on port ${PORT}`);

@@ -5,14 +5,22 @@ const IV_LENGTH = 12; // 96-bit IV recommended for GCM
 const AUTH_TAG_LENGTH = 16; // 128-bit auth tag
 
 /**
+ * Resolves a 32-byte Buffer from a 64-character hex string or arbitrary passphrase/secret.
+ */
+function resolveKey(masterKeyHex: string): Buffer {
+  if (typeof masterKeyHex === 'string' && /^[0-9a-fA-F]{64}$/.test(masterKeyHex.trim())) {
+    return Buffer.from(masterKeyHex.trim(), 'hex');
+  }
+  // Deterministically derive a 32-byte key from arbitrary passphrase/secret
+  return crypto.createHash('sha256').update(String(masterKeyHex || '')).digest();
+}
+
+/**
  * Encrypts plaintext string using AES-256-GCM.
  * Output format: iv_hex:authTag_hex:cipher_hex
  */
 export function encrypt(plaintext: string, masterKeyHex: string): string {
-  const key = Buffer.from(masterKeyHex, 'hex');
-  if (key.length !== 32) {
-    throw new Error('Master key must be a 32-byte (64 hex characters) string.');
-  }
+  const key = resolveKey(masterKeyHex);
 
   const iv = crypto.randomBytes(IV_LENGTH);
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv, { authTagLength: AUTH_TAG_LENGTH });
@@ -31,10 +39,7 @@ export function encrypt(plaintext: string, masterKeyHex: string): string {
  * Decrypts an AES-256-GCM ciphertext payload.
  */
 export function decrypt(encryptedPayload: string, masterKeyHex: string): string {
-  const key = Buffer.from(masterKeyHex, 'hex');
-  if (key.length !== 32) {
-    throw new Error('Master key must be a 32-byte (64 hex characters) string.');
-  }
+  const key = resolveKey(masterKeyHex);
 
   const parts = encryptedPayload.split(':');
   if (parts.length !== 3) {

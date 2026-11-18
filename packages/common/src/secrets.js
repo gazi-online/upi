@@ -251,8 +251,15 @@ export const LEGACY_DEFAULT_WEBHOOK_SECRET = 'merchant_webhook_secret_for_wallet
 /**
  * Master key for encrypting data at rest (merchant webhook secrets, OTPs).
  * Generated once and persisted alongside the other local secrets.
+ * Safely derives 32-byte (64 hex characters) key from any string/passphrase.
  */
-export const getEncryptionMasterKey = () => resolveSecret('encryption_master_key', 'ENCRYPTION_MASTER_KEY');
+export const getEncryptionMasterKey = () => {
+  const raw = resolveSecret('encryption_master_key', 'ENCRYPTION_MASTER_KEY');
+  if (typeof raw === 'string' && /^[0-9a-fA-F]{64}$/.test(raw.trim())) {
+    return raw.trim().toLowerCase();
+  }
+  return crypto.createHash('sha256').update(String(raw || '')).digest('hex');
+};
 
 /** Envelope prefix marking a stored value as AES-256-GCM ciphertext. */
 const ENC_PREFIX = 'enc:v1:';
