@@ -38,9 +38,11 @@ if (process.env.ENCRYPTION_MASTER_KEY && !/^[0-9a-fA-F]{64}$/.test(process.env.E
 
 import { runMigrations } from '../packages/db/src/migrate.js';
 import { startControlCenter } from '../apps/control-center/src/index.js';
+import { getAdminToken } from '../packages/common/src/secrets.js';
 
 console.log('====================================================');
 console.log(`🚀 Starting YOUPI PG V2 — Render Cloud Gateway on port ${PORT}`);
+console.log(`🔑 [Admin Auth] Admin API Token: ${getAdminToken()}`);
 console.log('====================================================');
 
 // 1. Run migrations & ensure database
