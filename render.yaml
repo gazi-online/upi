@@ -1,11 +1,10 @@
-
 services:
   - type: web
-    name: youpi-pg-demo
+    name: youpi-pg
     runtime: node
     plan: free
-    buildCommand: npm ci
-    startCommand: node scripts/start-render-demo.js
+    buildCommand: npm ci && npm run build
+    startCommand: node scripts/start-render.js
     healthCheckPath: /health
 
     envVars:
@@ -14,6 +13,12 @@ services:
 
       - key: NODE_ENV
         value: production
+
+      - key: YOUPI_MODE
+        value: localhost
+
+      - key: YOUPI_ALLOW_LOCALHOST_MODE
+        value: "true"
 
       - key: YOUPI_BIND_HOST
         value: 0.0.0.0
